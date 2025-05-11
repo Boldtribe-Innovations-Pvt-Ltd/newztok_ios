@@ -1,0 +1,21 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "src/assets/font/Lora-Bold.ttf",
+      "sha1": "2e444def8d9c585fa95eb135a66e55ec0824304b"
+    },
+    {
+      "path": "src/assets/font/Montserrat-SemiBold.ttf",
+      "sha1": "d491c9d0af61faef59ca807737b560170f547f5b"
+    },
+    {
+      "path": "src/assets/font/Poppins-Light.ttf",
+      "sha1": "e247a92158e112f8bf7b638c8d95381d66b00dbb"
+    },
+    {
+      "path": "src/assets/font/Poppins-SemiBold.ttf",
+      "sha1": "8a4ace9392d06bcb7f8ea2f5169b07e4c383a90d"
+    }
+  ]
+}

@@ -10,8 +10,31 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.2",
+    "@react-navigation/bottom-tabs": "^7.3.12",
+    "@react-navigation/material-top-tabs": "^7.2.12",
+    "@react-navigation/native": "^7.1.8",
+    "@react-navigation/stack": "^7.3.1",
+    "@reduxjs/toolkit": "^2.8.1",
     "react": "19.0.0",
-    "react-native": "0.79.2"
+    "react-native": "0.79.2",
+    "react-native-fast-image": "^8.6.3",
+    "react-native-fbsdk-next": "^13.4.1",
+    "react-native-geolocation-service": "^5.3.1",
+    "react-native-gesture-handler": "^2.25.0",
+    "react-native-image-picker": "^8.2.1",
+    "react-native-linear-gradient": "^2.8.3",
+    "react-native-pager-view": "^6.7.1",
+    "react-native-render-html": "^6.3.4",
+    "react-native-safe-area-context": "^5.4.0",
+    "react-native-screens": "^4.10.0",
+    "react-native-screenshot-prevent": "^1.2.1",
+    "react-native-vector-icons": "^10.2.0",
+    "react-native-video": "^6.14.0",
+    "react-native-webview": "^13.13.5",
+    "react-native-youtube-iframe": "^2.3.0",
+    "react-redux": "^9.2.0",
+    "redux": "^5.0.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
