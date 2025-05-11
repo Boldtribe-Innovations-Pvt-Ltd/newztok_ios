@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View, Alert } from "react-native";
 import { CustomBtn } from "../../components/commonComponents/CustomBtn";
 import { LOGO } from "../../constants/imagePath";
 import { BLACK, RED, WHITE } from "../../constants/color";
@@ -8,11 +8,29 @@ import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 export default LoginSignupScreen = ({ navigation }) => {
 
     const onNavigateLogin = () => {
-        navigation.navigate("LoginScreen")
+        try {
+            navigation.navigate("LoginScreen");
+        } catch (error) {
+            console.error("Navigation error:", error);
+            Alert.alert(
+                "Navigation Error",
+                "Unable to navigate to login screen. Please try again.",
+                [{ text: "OK" }]
+            );
+        }
     };
 
     const onNavigateJournalistLogin = () => {
-        navigation.navigate("JournalistLoginScreen")
+        try {
+            navigation.navigate("JournalistLoginScreen");
+        } catch (error) {
+            console.error("Navigation error:", error);
+            Alert.alert(
+                "Navigation Error",
+                "Unable to navigate to journalist login screen. Please try again.",
+                [{ text: "OK" }]
+            );
+        }
     };
 
     return (

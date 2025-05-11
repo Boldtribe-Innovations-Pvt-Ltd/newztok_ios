@@ -107,18 +107,27 @@ export default ProfileScreen = ({ route, navigation }) => {
     }, []);
 
     const handleEditProfile = () => {
-        if (userData) {
-            navigation.navigate("EditScreen", {
-                username: userData.username,
-                email: userData.email,
-                mobile: userData.mobile,
-                token: userData.token,
-                updateProfile: (updatedData) => {
-                    setUserData(prev => ({ ...prev, ...updatedData }));
-                }
+        try {
+            if (userData) {
+                navigation.navigate("EditScreen", {
+                    username: userData.username,
+                    email: userData.email,
+                    mobile: userData.mobile,
+                    token: userData.token,
+                    updateProfile: (updatedData) => {
+                        setUserData(prev => ({ ...prev, ...updatedData }));
+                    }
+                });
+            } else {
+                navigateToLogin();
+            }
+        } catch (error) {
+            console.error("Navigation error:", error);
+            setToastMessage({
+                visible: true,
+                message: "Unable to navigate to edit screen. Please try again.",
+                type: "error"
             });
-        } else {
-            navigation.navigate("LoginSignup");
         }
     };
 
@@ -180,7 +189,16 @@ export default ProfileScreen = ({ route, navigation }) => {
     };
 
     const navigateToLogin = () => {
-        navigation.navigate("LoginSignup");
+        try {
+            navigation.navigate("LoginSignup");
+        } catch (error) {
+            console.error("Navigation error:", error);
+            setToastMessage({
+                visible: true,
+                message: "Unable to navigate to login screen. Please try again.",
+                type: "error"
+            });
+        }
     };
 
     const showToast = (message, type = "success") => {
