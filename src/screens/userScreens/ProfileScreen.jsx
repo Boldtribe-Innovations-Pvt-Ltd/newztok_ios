@@ -270,42 +270,23 @@ export default ProfileScreen = ({ route, navigation }) => {
 
     if (isLoading) {
         return (
-            <SafeAreaView style={styles.safeArea}>
+            <>
                 <MyStatusBar backgroundColor={WHITE} />
-                <MyHeader 
-                    showLocationDropdown={false} 
-                    showBackButton={false} 
-                    showSettings={false}
-                    showLoginButton={false}
-                    onlyLogo={true}
-                    height={HEIGHT * 0.08}
-                />
+                <MyHeader showLocationDropdown={false} showBackButton={false} />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#D31409" />
                     <Text style={styles.loadingText}>Loading profile...</Text>
                 </View>
-            </SafeAreaView>
+            </>
         );
     }
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <>
             <MyStatusBar backgroundColor={WHITE} />
-            <MyHeader 
-                showLocationDropdown={false} 
-                showBackButton={false} 
-                showSettings={!!userData}
-                showLoginButton={!userData}
-                onPressSettings={() => navigation.navigate("Setting")}
-                onPressLoginButton={navigateToLogin}
-                onlyLogo={!userData}
-                title={userData?.username || ""}
-                height={HEIGHT * 0.08}
-            />
+            <MyHeader showLocationDropdown={false} showBackButton={false} />
             
-            <View style={styles.container}>
-                {userData ? renderUserProfile() : renderGuestProfile()}
-            </View>
+            {userData ? renderUserProfile() : renderGuestProfile()}
 
             <ToastMessage
                 message={toastMessage.message}
@@ -330,7 +311,7 @@ export default ProfileScreen = ({ route, navigation }) => {
                 onPressRight={handleChooseFromFile}
                 onRequestClose={() => setAlertVisible(false)}
             />
-        </SafeAreaView>
+        </>
     );
 };
 
