@@ -1,23 +1,26 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, Share, ActivityIndicator, Alert, Linking } from "react-native";
-import YoutubeIframe from "react-native-youtube-iframe";
-import { DISLIKE, LIKE, PRESSDISLIKE, PRESSLIKE, SHARE, THREEDOTS, ACCOUNT, VERIFIED, RAMNABAMI } from "../../constants/imagePath";
-import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
+import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
+import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
+import YoutubeIframe from "react-native-youtube-iframe";
 import { CustomBtn } from "../../components/commonComponents/CustomBtn";
-import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
-import { BASE_URL } from "../../constants/url";
 import { useFocusEffect } from "@react-navigation/native";
-import { WIDTH, HEIGHT } from "../../constants/config";
-import { BOLDMONTSERRAT, LORA, POPPINSLIGHT } from "../../constants/fontPath";
+import { BackHandler } from "react-native";
+import { BASE_URL } from "../../constants/url";
+console.log('Current BASE_URL:', BASE_URL);
+import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
 import { MyLoader } from "../../components/commonComponents/MyLoader";
+import { WIDTH, HEIGHT } from "../../constants/config";
+import { BOLDMONTSERRAT, LORA, POPPINSLIGHT, POPPINSMEDIUM } from "../../constants/fontPath";
 import NativeAdComponent from "../../components/ads/NativeAdComponent";
+import LinearGradient from "react-native-linear-gradient";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getObjByKey, getStringByKey } from "../../utils/Storage";
 import Video from 'react-native-video';
 import { MyAlert } from "../../components/commonComponents/MyAlert";
 
-console.log('Nationals Screen - Current BASE_URL:', BASE_URL);
+console.log('National News Screen - Current BASE_URL:', BASE_URL);
 
 // Add VideoPlayer component
 const VideoPlayer = ({ videoPath }) => {
@@ -219,10 +222,15 @@ export default function NationalNewzScreen({ navigation }) {
     const [reaction, setReaction] = useState({});
     const [followStatus, setFollowStatus] = useState({});
     const [loading, setLoading] = useState(false);
-    const [nationalNewsData, setNationalNewsData] = useState([]);
+    const [newsData, setNewsData] = useState([]);
     const [imageErrors, setImageErrors] = useState({});
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [showLoginAlert, setShowLoginAlert] = useState(false); // Add state for login alert
+    const [showLoginAlert, setShowLoginAlert] = useState(false);
+    const [commentModalVisible, setCommentModalVisible] = useState(false);
+    const [currentNewsItem, setCurrentNewsItem] = useState(null);
+    const [commentText, setCommentText] = useState('');
+    const [comments, setComments] = useState([]);
+    const [isFetchingComments, setIsFetchingComments] = useState(false);
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -262,10 +270,10 @@ export default function NationalNewzScreen({ navigation }) {
         }
     };
 
-    const fetchNationalNewsData = async () => {
+    const fetchNewsData = async () => {
         try {
             setLoading(true);
-            console.log('Fetching national news from:', `${BASE_URL}api/news/category/national`);
+            console.log('Fetching news from:', `${BASE_URL}api/news/category/national`);
             
             const response = await GETNETWORK(`${BASE_URL}api/news/category/national`);
             console.log('API Response:', response);
@@ -279,11 +287,11 @@ export default function NationalNewzScreen({ navigation }) {
                     throw new Error('Invalid response format: News data is not an array');
                 }
 
-                // No need to filter as the API already returns nationals news
-                console.log('Nationals news from API:', newsArray);
+                // No need to filter as the API already returns  News
+                console.log('News from API:', newsArray);
                 
                 // Use the updated processUrl function instead of processImageUrl
-                const transformedData = newsArray.map(newsItem => {
+                const transformedData = newsArray.map(async newsItem => {
                     // Extract YouTube ID consistently
                     const youtubeId = newsItem.youtubeUrl ? extractVideoId(newsItem.youtubeUrl) : 
                                      newsItem.video_link ? extractVideoId(newsItem.video_link) : null;
@@ -345,11 +353,51 @@ export default function NationalNewzScreen({ navigation }) {
                         journalistName = newsItem.journalist_name;
                     }
                     
+                    // Get the like count for this news item
+                    let likeCount = 0;
+                    try {
+                        if (newsItem.id) {
+                            // Check if we have it stored in AsyncStorage first
+                            const likeCountsStr = await AsyncStorage.getItem('likeCounts');
+                            if (likeCountsStr) {
+                                const likeCounts = JSON.parse(likeCountsStr);
+                                if (likeCounts[newsItem.id] !== undefined) {
+                                    likeCount = likeCounts[newsItem.id];
+                                }
+                            }
+                            
+                            // If not in storage, try API
+                            if (likeCount === 0) {
+                                const likeCountEndpoint = `${BASE_URL}api/interaction/news/${newsItem.id}/like/count`;
+                                const likeResponse = await GETNETWORK(likeCountEndpoint);
+                                
+                                if (likeResponse?.success && likeResponse?.data) {
+                                    likeCount = likeResponse.data?.count || 
+                                              likeResponse.data?.likes_count || 
+                                              likeResponse.data?.like_count || 
+                                              likeResponse.data?.likes || 0;
+                                    
+                                    // Store in AsyncStorage
+                                    try {
+                                        const likeCountsStr = await AsyncStorage.getItem('likeCounts');
+                                        let likeCounts = likeCountsStr ? JSON.parse(likeCountsStr) : {};
+                                        likeCounts[newsItem.id] = likeCount;
+                                        await AsyncStorage.setItem('likeCounts', JSON.stringify(likeCounts));
+                                    } catch (error) {
+                                        console.error("Error storing like count:", error);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error("Error fetching like count:", error);
+                    }
+                    
                     return {
                         id: newsItem.id || Math.random().toString(),
                         youtubeId: youtubeId,
                         videoId: youtubeId, // Keep videoId for backward compatibility
-                        title: newsItem.headline || newsItem.title || "National News",
+                        title: newsItem.headline || newsItem.title || "News",
                         posterName: journalistName,
                         time: formatTime(newsItem.updatedAt || newsItem.createdAt),
                         accountImage: journalistImage,
@@ -365,18 +413,22 @@ export default function NationalNewzScreen({ navigation }) {
                         createdAt: newsItem.createdAt || newsItem.updatedAt || new Date().toISOString(),
                         updatedAt: newsItem.updatedAt || newsItem.createdAt || new Date().toISOString(),
                         approvedAt: newsItem.approvedAt || newsItem.approved_at || newsItem.updatedAt || newsItem.updated_at || newsItem.createdAt || newsItem.created_at,
-                        raw_date: newsItem.createdAt || newsItem.created_at || newsItem.updatedAt || newsItem.updated_at // Keep raw date for sorting
+                        raw_date: newsItem.createdAt || newsItem.created_at || newsItem.updatedAt || newsItem.updated_at, // Keep raw date for sorting
+                        likeCount: likeCount || 0 // Add like count
                     };
                 });
                 
+                // Wait for all Promise.all to resolve the like count fetches
+                const resolvedData = await Promise.all(transformedData);
+                
                 // Log some of the dates to debug
-                console.log('Sample of nationals news items before sorting:');
-                transformedData.slice(0, 3).forEach(item => {
-                    console.log(`Title: ${item.title.substring(0, 20)}..., Created: ${item.createdAt}, Updated: ${item.updatedAt}, Raw: ${item.raw_date}`);
+                console.log('Sample of news items before sorting:');
+                resolvedData.slice(0, 3).forEach(item => {
+                    console.log(`Title: ${item.title.substring(0, 20)}..., Created: ${item.createdAt}, Updated: ${item.updatedAt}, Raw: ${item.raw_date}, Likes: ${item.likeCount}`);
                 });
 
                 // Sort by creation date first (newest first)
-                const sortedData = transformedData.sort((a, b) => {
+                const sortedData = resolvedData.sort((a, b) => {
                     // Try parsing dates in different formats
                     let dateA, dateB;
                     
@@ -411,34 +463,34 @@ export default function NationalNewzScreen({ navigation }) {
 
                 // Count news items with videos for debugging
                 const videosCount = sortedData.filter(item => item.videoPath).length;
-                console.log(`Total national news items with videos: ${videosCount} out of ${sortedData.length}`);
+                console.log(`Total news items with videos: ${videosCount} out of ${sortedData.length}`);
 
                 // Log the first 3 items after sorting to verify
-                console.log('Nationals news order after sorting:');
+                console.log('News order after sorting:');
                 sortedData.slice(0, 3).forEach((item, index) => {
                     const date = new Date(item.raw_date || item.createdAt);
-                    console.log(`${index+1}. ${item.title.substring(0, 20)}... - Date: ${date.toLocaleDateString()}`);
+                    console.log(`${index+1}. ${item.title.substring(0, 20)}... - Date: ${date.toLocaleDateString()}, Likes: ${item.likeCount}`);
                 });
                 
-                console.log('Transformed and sorted Nationals News Data ready');
-                setNationalNewsData(sortedData);
+                console.log('Transformed and sorted News Data ready');
+                setNewsData(sortedData);
             } else {
                 console.error("API Error:", response.message);
                 Alert.alert(
                     "Error",
-                    response.message || "Unable to fetch nationals news. Please try again later.",
+                    response.message || "Unable to fetch news. Please try again later.",
                     [{ text: "OK" }]
                 );
-                setNationalNewsData([]);
+                setNewsData([]);
             }
         } catch (error) {
-            console.error("Error fetching nationals news:", error);
+            console.error("Error fetching news:", error);
             Alert.alert(
                 "Error",
-                "Unable to fetch nationals news. Please check your internet connection and try again.",
+                "Unable to fetch news. Please check your internet connection and try again.",
                 [{ text: "OK" }]
             );
-            setNationalNewsData([]);
+            setNewsData([]);
         } finally {
             setLoading(false);
         }
@@ -447,7 +499,7 @@ export default function NationalNewzScreen({ navigation }) {
     // Fetch news data
     useFocusEffect(
         useCallback(() => {
-            fetchNationalNewsData();
+            fetchNewsData();
             return () => {};
         }, [])
     );
@@ -520,7 +572,7 @@ export default function NationalNewzScreen({ navigation }) {
             }
             
             // Get news item
-            const newsItem = nationalNewsData.find(item => item.id === id);
+            const newsItem = newsData.find(item => item.id === id);
             if (!newsItem) {
                 console.error("News item not found:", id);
                 return;
@@ -605,19 +657,26 @@ export default function NationalNewzScreen({ navigation }) {
         // Track the view
         handleViewCount(item.id);
         
-        // Navigate to the news detail screen
+        // Navigate to the Nationals News screen
         navigation.navigate("Nationals", {
-            isLoggedIn: isLoggedIn,
             newsData: {
                 id: item.id,
                 videoId: item.youtubeId,
-                videoPath: item.videoPath, // Add videoPath to navigation
+                videoPath: item.videoPath,
                 video_link: item.video_link || item.youtubeUrl,
                 featured_image: item.featuredImage,
                 headline: item.title,
                 content: item.content,
                 time: item.time,
-                contentType: item.contentType
+                contentType: item.contentType,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+                approvedAt: item.approvedAt,
+                category: item.category,
+                journalist: {
+                    name: item.posterName,
+                    profile_image: item.accountImage
+                }
             }
         });
     };
@@ -675,6 +734,299 @@ export default function NationalNewzScreen({ navigation }) {
             ...prevState,
             [id]: prevState[id] ? false : true,
         }));
+    };
+
+    // Function to handle opening the comment modal
+    const handleCommentPress = async (item) => {
+        setCurrentNewsItem(item);
+        setCommentModalVisible(true);
+        await fetchComments(item.id);
+    };
+    
+    // Function to fetch comments for a news item
+    const fetchComments = async (newsId) => {
+        if (!newsId) return;
+        
+        setIsFetchingComments(true);
+        try {
+            // Get the news ID
+            const targetNewsId = newsId;
+            console.log(`Fetching comments for news ID: ${targetNewsId}`);
+            
+            // Try to get token for authenticated request
+            let userToken = await getStoredToken();
+            
+            // Set auth flag based on token availability
+            const isAuthenticated = !!userToken;
+            if (isAuthenticated) {
+                console.log("Fetching comments with authentication");
+                await AsyncStorage.setItem('loginResponse', userToken);
+            } else {
+                console.log("Fetching comments without authentication");
+            }
+            
+            // Make API request to get comments
+            const commentsEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/comments`;
+            console.log(`Comments endpoint: ${commentsEndpoint}`);
+            
+            const response = await GETNETWORK(commentsEndpoint, isAuthenticated);
+            console.log("Comments API response:", response);
+            
+            // Extract comments from potentially nested response structure
+            let commentsData = [];
+            
+            // Handle different response formats
+            if (response) {
+                if (Array.isArray(response.data)) {
+                    commentsData = response.data;
+                    console.log(`Found ${commentsData.length} comments in direct array`);
+                } else if (response.data?.data && Array.isArray(response.data.data)) {
+                    commentsData = response.data.data;
+                    console.log(`Found ${commentsData.length} comments in nested data.data array`);
+                } else if (response.data?.comments && Array.isArray(response.data.comments)) {
+                    commentsData = response.data.comments;
+                    console.log(`Found ${commentsData.length} comments in data.comments array`);
+                } else if (response.data) {
+                    console.log("Response format not recognized, attempting to extract comments", response.data);
+                    // Try to extract any array that might contain comments
+                    for (const key in response.data) {
+                        if (Array.isArray(response.data[key])) {
+                            commentsData = response.data[key];
+                            console.log(`Found possible comments array in key: ${key} with ${commentsData.length} items`);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (commentsData && commentsData.length > 0) {
+                console.log(`Processing ${commentsData.length} comments`);
+                console.log("Sample comment data:", commentsData[0]);
+                
+                // Transform API response to our comment format
+                const formattedComments = commentsData.map(item => ({
+                    id: item.id || Math.random().toString(),
+                    name: item.user?.username || item.username || item.user_name || "Anonymous",
+                    comment: item.text || item.comment || item.content || item.message || "",
+                    timestamp: new Date(item.createdAt || item.created_at || item.timestamp || Date.now())
+                }));
+                
+                // Sort comments by timestamp (newest first)
+                formattedComments.sort((a, b) => b.timestamp - a.timestamp);
+                
+                setComments(formattedComments);
+            } else {
+                console.log("No comments found in response");
+                setComments([]);
+            }
+        } catch (error) {
+            console.error("Error fetching comments:", error);
+            setComments([]);
+        } finally {
+            setIsFetchingComments(false);
+        }
+    };
+    
+    // Function to post a comment
+    const postComment = async () => {
+        if (!commentText.trim() || !currentNewsItem?.id) return;
+        
+        if (!isLoggedIn) {
+            setCommentModalVisible(false);
+            setShowLoginAlert(true);
+            return;
+        }
+        
+        try {
+            // Get the news ID
+            const targetNewsId = currentNewsItem.id;
+            console.log(`Posting comment for news ID: ${targetNewsId}`);
+            
+            // Get token for authenticated request
+            let userToken = await getStoredToken();
+            
+            // Validate token
+            if (!userToken) {
+                throw new Error("No authentication token found");
+            }
+            
+            // Store token in AsyncStorage for POSTNETWORK
+            await AsyncStorage.setItem('loginResponse', userToken);
+            console.log("Using token for comment POST");
+            
+            // Create comment payload - try text field first (most common API format)
+            const commentPayload = { text: commentText.trim() };
+            
+            // Make API request to post comment
+            const commentEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/comment`;
+            console.log(`Comment POST endpoint: ${commentEndpoint}`);
+            console.log("Comment payload:", commentPayload);
+            
+            const response = await POSTNETWORK(commentEndpoint, commentPayload, true);
+            console.log("Comment POST response:", response);
+            
+            if (response && (response.success || response.data?.success)) {
+                // Comment posted successfully
+                console.log("Comment posted successfully");
+                
+                // Add to local state first for immediate feedback
+                const newCommentObj = {
+                    id: response.data?.id || response.data?.data?.id || Math.random().toString(),
+                    name: "You",
+                    comment: commentText.trim(),
+                    timestamp: new Date()
+                };
+                
+                // Add to the beginning of the list (newest first)
+                setComments(prevComments => [newCommentObj, ...prevComments]);
+                
+                // Clear the input
+                setCommentText("");
+                
+                // Fetch all comments to get the updated list
+                setTimeout(() => {
+                    fetchComments(currentNewsItem.id);
+                }, 500);
+            } else {
+                // If default payload format failed, try alternative formats
+                console.log("First attempt failed, trying alternative payload formats");
+                
+                const alternativePayloads = [
+                    { comment: commentText.trim() },
+                    { content: commentText.trim() },
+                    { message: commentText.trim() }
+                ];
+                
+                let success = false;
+                
+                for (const payload of alternativePayloads) {
+                    console.log("Trying payload format:", payload);
+                    const retryResponse = await POSTNETWORK(commentEndpoint, payload, true);
+                    
+                    if (retryResponse && (retryResponse.success || retryResponse.data?.success)) {
+                        // Comment posted successfully with alternative payload
+                        console.log("Comment posted successfully with alternative payload");
+                        
+                        // Add to local state
+                        const newCommentObj = {
+                            id: retryResponse.data?.id || retryResponse.data?.data?.id || Math.random().toString(),
+                            name: "You",
+                            comment: commentText.trim(),
+                            timestamp: new Date()
+                        };
+                        
+                        setComments(prevComments => [newCommentObj, ...prevComments]);
+                        setCommentText("");
+                        
+                        setTimeout(() => {
+                            fetchComments(currentNewsItem.id);
+                        }, 500);
+                        
+                        success = true;
+                        break;
+                    }
+                }
+                
+                if (!success) {
+                    throw new Error(response?.message || response?.data?.message || "Failed to post comment");
+                }
+            }
+        } catch (error) {
+            console.error("Error posting comment:", error);
+            
+            // Handle unauthorized error (401)
+            if (error.message?.includes("unauthorized") || error.message?.includes("401")) {
+                setCommentModalVisible(false);
+                setShowLoginAlert(true);
+            } else {
+                // General error
+                Alert.alert(
+                    "Error",
+                    error.message || "Failed to post comment",
+                    [{ text: "OK" }]
+                );
+            }
+        }
+    };
+    
+    // Comment modal component
+    const renderCommentModal = () => {
+        return (
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={commentModalVisible}
+                onRequestClose={() => setCommentModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Comments</Text>
+                            <TouchableOpacity 
+                                style={styles.closeButton} 
+                                onPress={() => setCommentModalVisible(false)}
+                            >
+                                <Image source={DOWNARROW} style={styles.downArrowIcon} />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.commentsList}>
+                            {isFetchingComments ? (
+                                <View style={styles.loadingComments}>
+                                    <ActivityIndicator size="small" color={BLUE} />
+                                    <Text style={styles.loadingCommentsText}>Loading comments...</Text>
+                                </View>
+                            ) : comments.length === 0 ? (
+                                <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+                            ) : (
+                                <FlatList
+                                    data={comments}
+                                    keyExtractor={(item) => item.id.toString()}
+                                    renderItem={({ item }) => (
+                                        <View style={styles.commentItem}>
+                                            <View style={styles.commentHeader}>
+                                                <View style={styles.profileInitial}>
+                                                    <Text style={styles.initialText}>
+                                                        {item.name.charAt(0).toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.commentDetails}>
+                                                    <Text style={styles.commenterName}>{item.name}</Text>
+                                                    <Text style={styles.commentTime}>
+                                                        {item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <Text style={styles.commentContent}>{item.comment}</Text>
+                                        </View>
+                                    )}
+                                />
+                            )}
+                        </View>
+                        
+                        <View style={styles.commentInputContainer}>
+                            <TextInput
+                                style={styles.commentInput}
+                                placeholder="Add a comment..."
+                                value={commentText}
+                                onChangeText={setCommentText}
+                                placeholderTextColor={GREY}
+                            />
+                            <TouchableOpacity 
+                                style={[
+                                    styles.postButton, 
+                                    !commentText.trim() && styles.disabledButton
+                                ]}
+                                onPress={postComment}
+                                disabled={!commentText.trim()}
+                            >
+                                <Text style={styles.postButtonText}>Post</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        );
     };
 
     const renderCard = ({ item }) => {
@@ -770,20 +1122,39 @@ export default function NationalNewzScreen({ navigation }) {
 
                     <View style={styles.actionContainer}>
                         <View style={styles.iconContainer}>
-                            <View style={styles.likeDislikeContainer}>
-                                <TouchableOpacity onPress={() => handleLike(item.id)}>
+                            <View style={styles.actionButtonContainer}>
+                                <TouchableOpacity onPress={() => handleLike(item.id)} style={styles.actionButton}>
                                     <Image
                                         source={reaction[item.id] === "like" ? PRESSLIKE : LIKE}
-                                        style={styles.icon}
+                                        style={styles.actionIcon}
                                     />
+                                    <Text style={styles.actionCountText}>
+                                        {item.likeCount > 999 ? (item.likeCount / 1000).toFixed(1) + 'k' : item.likeCount || 0}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
-                            <TouchableOpacity onPress={() => handleShare(item)}>
-                                <Image source={SHARE} style={styles.icon} />
-                            </TouchableOpacity>
+
+                            <View style={styles.actionButtonContainer}>
+                                <TouchableOpacity onPress={() => handleWhatsAppShare(item)} style={styles.actionButton}>
+                                    <Image source={WHATSAPP} style={styles.actionIcon} />
+                                    <Text style={styles.actionCountText}>Share</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.actionButtonContainer}>
+                                <TouchableOpacity onPress={() => handleCommentPress(item)} style={styles.actionButton}>
+                                    <Image source={COMMENT} style={styles.actionIcon} />
+                                    <Text style={styles.actionCountText}>Comments</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
-                        <CustomBtn text="Read More" width={WIDTH * 0.25} onPress={() => onNavigateNews(item)} />
+                        <TouchableOpacity 
+                            style={styles.readMoreButton}
+                            onPress={() => onNavigateNews(item)}
+                        >
+                            <Text style={styles.readMoreText}>Read more</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </View>
@@ -814,6 +1185,7 @@ export default function NationalNewzScreen({ navigation }) {
         return dataWithAds;
     };
 
+
     const renderItem = ({ item }) => {
         // If it's an ad, render the NativeAdComponent
         if (item.itemType === 'ad') {
@@ -822,6 +1194,55 @@ export default function NationalNewzScreen({ navigation }) {
         
         // Otherwise render a news card
         return renderCard({ item });
+    };
+
+    // Add WhatsApp share function
+    const handleWhatsAppShare = async (item) => {
+        try {
+            // Remove HTML tags function
+            const removeHtmlTags = (text) => {
+                if (!text) return '';
+                return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+            };
+
+            let shareMessage = `${removeHtmlTags(item.title)}\n\n`;
+            
+            // Add a snippet of content (first 100 characters) with HTML tags removed
+            if (item.content) {
+                const cleanContent = removeHtmlTags(item.content);
+                const contentPreview = cleanContent.length > 100 
+                    ? cleanContent.substring(0, 100) + '...' 
+                    : cleanContent;
+                shareMessage += `${contentPreview}\n\n`;
+            }
+
+            // Add read more link with specific news ID for direct access
+            shareMessage += `Read more at: https://newztok.in/news/${item.id}`;
+
+            // Prepare share options
+            const shareOptions = {
+                message: shareMessage,
+            };
+
+            // Add media URL based on content type
+            if (item.youtubeId) {
+                shareOptions.url = `https://www.youtube.com/watch?v=${item.youtubeId}`;
+            } else if (item.featuredImage) {
+                shareOptions.url = item.featuredImage;
+            }
+
+            await Share.share(shareOptions, {
+                dialogTitle: 'Share News',
+                subject: removeHtmlTags(item.title)
+            });
+        } catch (error) {
+            console.error("Error sharing news: ", error);
+            Alert.alert(
+                "Error",
+                "Unable to share the news. Please try again.",
+                [{ text: "OK" }]
+            );
+        }
     };
 
     return (
@@ -833,13 +1254,13 @@ export default function NationalNewzScreen({ navigation }) {
                         <ActivityIndicator size="large" color={BLUE} style={styles.loader} />
                         <Text style={{fontFamily: LORA, marginTop: HEIGHT * 0.01}}>Loading nationals news...</Text>
                     </View>
-                ) : nationalNewsData.length === 0 ? (
+                ) : newsData.length === 0 ? (
                     <View style={styles.noNewsContainer}>
-                        <Text style={styles.noNewsText}>No National News Available</Text>
+                        <Text style={styles.noNewsText}>No Nationals News Available</Text>
                     </View>
                 ) : (
                     <FlatList
-                        data={prepareDataWithAds(nationalNewsData)}
+                        data={prepareDataWithAds(newsData)}
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
                         contentContainerStyle={{ paddingBottom: 20 }}
@@ -851,11 +1272,14 @@ export default function NationalNewzScreen({ navigation }) {
             visible={loading}
             />
             
-            {/* Add MyAlert component for login prompt */}
+            {/* Comment Modal */}
+            {renderCommentModal()}
+            
+            {/* Login Alert */}
             <MyAlert
                 visible={showLoginAlert}
                 title="Login Required"
-                message="Please log in to like this news"
+                message="Please log in to like or comment on this news"
                 textLeft="Cancel"
                 textRight="Login"
                 backgroundColor={BLUE}
@@ -983,31 +1407,51 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: HEIGHT * 0.005,
+        marginTop: HEIGHT * 0.01,
+        marginBottom: HEIGHT * 0.005,
+        width: '100%',
     },
     iconContainer: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "flex-start",
+        flexWrap: "wrap",
     },
-    likeDislikeContainer: {
+    actionButtonContainer: {
+        marginRight: WIDTH * 0.02,
+    },
+    actionButton: {
         flexDirection: "row",
         alignItems: "center",
-        // backgroundColor: GREY,
-        padding: WIDTH * 0.008,
-        borderRadius: WIDTH * 0.025,
-        marginRight: WIDTH * 0.015,
+        backgroundColor: 'rgba(240, 240, 240, 0.4)',
+        paddingVertical: HEIGHT * 0.006,
+        paddingHorizontal: WIDTH * 0.02,
+        borderRadius: WIDTH * 0.04,
+        borderWidth: 0.5,
+        borderColor: 'rgba(0, 0, 0, 0.1)',
     },
-    separator: {
-        width: 1,
-        height: "100%",
-        // backgroundColor: GREY,
-        marginHorizontal: WIDTH * 0.01,
+    actionIcon: {
+        width: WIDTH * 0.045,
+        height: WIDTH * 0.045,
+        marginRight: WIDTH * 0.01,
     },
-    icon: {
-        width: WIDTH * 0.05,
-        height: WIDTH * 0.05,
-        marginHorizontal: WIDTH * 0.008,
+    actionCountText: {
+        fontSize: WIDTH * 0.025,
+        color: BLACK,
+        fontFamily: POPPINSLIGHT,
+    },
+    readMoreButton: {
+        backgroundColor: BLUE,
+        paddingVertical: HEIGHT * 0.008,
+        paddingHorizontal: WIDTH * 0.03,
+        borderRadius: WIDTH * 0.02,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    readMoreText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.03,
     },
     accountImage: {
         width: WIDTH * 0.06,
@@ -1141,5 +1585,201 @@ const styles = StyleSheet.create({
         fontFamily: BOLDMONTSERRAT,
         color: BLACK,
         marginLeft: WIDTH * 0.01, // Slight offset for the play icon
+    },
+    socialMediaCard: {
+        height: HEIGHT * 0.18,
+        borderRadius: WIDTH * 0.03,
+        marginVertical: HEIGHT * 0.02,
+        padding: WIDTH * 0.05,
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: WIDTH * 0.9,
+        alignSelf: 'center',
+        overflow: 'hidden',
+        position: 'relative',
+    },
+    blackGradient: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        left: 0,
+        bottom: 0,
+        borderRadius: WIDTH * 0.03,
+        zIndex: 1,
+    },
+    whiteStrip: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        left: 0,
+        bottom: 0,
+        borderRadius: WIDTH * 0.03,
+        zIndex: 2,
+    },
+    redGradient: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        left: 0,
+        bottom: 0,
+        borderRadius: WIDTH * 0.03,
+        zIndex: 3,
+    },
+    socialMediaText: {
+        fontSize: WIDTH * 0.05,
+        fontFamily: BOLDMONTSERRAT,
+        color: WHITE,
+        marginBottom: HEIGHT * 0.015,
+        zIndex: 10,
+        textAlign: 'center',
+        textShadowColor: 'rgba(0, 0, 0, 0.75)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 3,
+    },
+    socialIconsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    socialIconButton: {
+        padding: WIDTH * 0.01,
+    },
+    iconSpacer: {
+        width: WIDTH * 0.02,
+    },
+    socialIcon: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        resizeMode: 'contain',
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: WHITE,
+        borderTopLeftRadius: WIDTH * 0.05,
+        borderTopRightRadius: WIDTH * 0.05,
+        paddingBottom: Platform.OS === 'ios' ? HEIGHT * 0.05 : HEIGHT * 0.02,
+        maxHeight: HEIGHT * 0.7,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        paddingHorizontal: WIDTH * 0.05,
+        paddingVertical: HEIGHT * 0.02,
+    },
+    modalTitle: {
+        fontSize: WIDTH * 0.045,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+    },
+    closeButton: {
+        padding: WIDTH * 0.02,
+    },
+    downArrowIcon: {
+        width: WIDTH * 0.05,
+        height: WIDTH * 0.05,
+    },
+    commentsList: {
+        maxHeight: HEIGHT * 0.5,
+        paddingHorizontal: WIDTH * 0.05,
+    },
+    commentItem: {
+        marginVertical: HEIGHT * 0.01,
+        paddingBottom: HEIGHT * 0.01,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    commentHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    profileInitial: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        backgroundColor: BLUE,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: WIDTH * 0.02,
+    },
+    initialText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.04,
+    },
+    commentDetails: {
+        flex: 1,
+    },
+    commenterName: {
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+        fontSize: WIDTH * 0.035,
+    },
+    commentTime: {
+        fontFamily: POPPINSLIGHT,
+        color: GREY,
+        fontSize: WIDTH * 0.03,
+    },
+    commentContent: {
+        fontFamily: POPPINSLIGHT,
+        color: BLACK,
+        fontSize: WIDTH * 0.035,
+        paddingLeft: WIDTH * 0.1,
+    },
+    loadingComments: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: HEIGHT * 0.03,
+    },
+    loadingCommentsText: {
+        fontFamily: POPPINSLIGHT,
+        color: GREY,
+        marginTop: HEIGHT * 0.01,
+    },
+    noCommentsText: {
+        fontFamily: POPPINSLIGHT,
+        color: GREY,
+        textAlign: 'center',
+        marginVertical: HEIGHT * 0.03,
+    },
+    commentInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
+        padding: WIDTH * 0.05,
+    },
+    commentInput: {
+        flex: 1,
+        height: HEIGHT * 0.05,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: WIDTH * 0.02,
+        paddingHorizontal: WIDTH * 0.03,
+        marginRight: WIDTH * 0.03,
+        fontFamily: POPPINSLIGHT,
+    },
+    postButton: {
+        backgroundColor: BLUE,
+        paddingVertical: HEIGHT * 0.01,
+        paddingHorizontal: WIDTH * 0.03,
+        borderRadius: WIDTH * 0.02,
+    },
+    postButtonText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.035,
+    },
+    disabledButton: {
+        backgroundColor: GREY,
     },
 });

@@ -56,3 +56,5 @@ export const LINKEDIN = require("../assets/images/linkedin.png");
 export const INSTAGRAM = require("../assets/images/instagram.png");
 export const YOUTUBE = require("../assets/images/youtube-2.png");
 export const XICON = require("../assets/images/twitter-2.png");
+export const COMMENT = require("../assets/images/comments.png");
+// export const DOWNARROW = require("../assets/images/down arrow.png");

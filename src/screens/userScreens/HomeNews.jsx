@@ -11,6 +11,9 @@ import {
     Linking,
     Alert,
     Share,
+    Modal,
+    Platform,
+    ActivityIndicator,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import YoutubeIframe from "react-native-youtube-iframe";
@@ -18,15 +21,16 @@ import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { MyHeader } from "../../components/commonComponents/MyHeader";
 import { MyLoader } from "../../components/commonComponents/MyLoader";
 import { GREY, WHITE, BLUE, RED, BLACK } from "../../constants/color";
-import { ACCOUNT, LIKE, LOGO2, PRESSLIKE, THREEDOTS, WHATSAPP, VIEW } from "../../constants/imagePath";
+import { ACCOUNT, LIKE, LOGO2, PRESSLIKE, THREEDOTS, WHATSAPP, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
 import { ToastMessage } from "../../components/commonComponents/ToastMessage";
 import { BASE_URL } from "../../constants/url";
 import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
 import { HEIGHT, WIDTH } from "../../constants/config";
-import { POPPINSMEDIUM, POPPINSLIGHT } from "../../constants/fontPath";
+import { POPPINSMEDIUM, POPPINSLIGHT, BOLDMONTSERRAT } from "../../constants/fontPath";
 import HTML from 'react-native-render-html';
 import { getObjByKey, getStringByKey } from "../../utils/Storage";
 import Video from 'react-native-video';
+import { MyAlert } from "../../components/commonComponents/MyAlert";
 
 // Helper function to process URLs (images and videos)
 const processUrl = (url) => {
@@ -211,6 +215,8 @@ export default HomeNews = ({ route, navigation }) => {
     const [viewCount, setViewCount] = useState(0);
     const [liking, setLiking] = useState(false);
     const [liked, setLiked] = useState(false);
+    const [commentModalVisible, setCommentModalVisible] = useState(false);
+    const [showLoginAlert, setShowLoginAlert] = useState(false);
 
     useEffect(() => {
         checkLoginStatus();
@@ -328,10 +334,13 @@ export default HomeNews = ({ route, navigation }) => {
                 formattedComments.sort((a, b) => b.timestamp - a.timestamp);
                 setComments(formattedComments);
             } else {
+                // If no comments are returned but we got a valid response, set empty array
                 setComments([]);
             }
         } catch (error) {
             console.error("Error fetching comments:", error);
+            // On error, set empty comments array
+            setComments([]);
         } finally {
             setFetchingComments(false);
         }
@@ -545,21 +554,9 @@ export default HomeNews = ({ route, navigation }) => {
 
     const handleAddComment = async () => {
         if (!isLoggedIn) {
-            setToastMessage({
-                visible: true,
-                message: "Please log in to comment",
-                type: "error"
-            });
-            
-            setTimeout(() => {
-                navigation.navigate("LoginSignup", { 
-                    returnScreen: "Home",
-                    params: { newsData }
-                });
-            }, 1500);
+            setShowLoginAlert(true);
             return;
         }
-        
         if (!newComment.trim()) {
             setToastMessage({
                 visible: true,
@@ -568,9 +565,7 @@ export default HomeNews = ({ route, navigation }) => {
             });
             return;
         }
-        
         setPosting(true);
-        
         try {
             const targetNewsId = newsData?.id;
             if (!targetNewsId) {
@@ -672,12 +667,7 @@ export default HomeNews = ({ route, navigation }) => {
                     type: "error"
                 });
                 
-                setTimeout(() => {
-                    navigation.navigate("LoginSignup", { 
-                        returnScreen: "Home",
-                        params: { newsData }
-                    });
-                }, 1500);
+                setShowLoginAlert(true);
             } else {
                 setToastMessage({
                     visible: true,
@@ -883,6 +873,123 @@ export default HomeNews = ({ route, navigation }) => {
         }
     };
 
+    // Comment modal component
+    const renderCommentModal = () => {
+        return (
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={commentModalVisible}
+                onRequestClose={() => setCommentModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Comment</Text>
+                            <TouchableOpacity 
+                                style={styles.closeButton} 
+                                onPress={() => setCommentModalVisible(false)}
+                            >
+                                <Image source={DOWNARROW} style={styles.downArrowIcon} />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.commentCountHeader}>
+                            <Text style={styles.commentCountText}>{comments.length}</Text>
+                        </View>
+                        
+                        <View style={styles.commentsList}>
+                            {fetchingComments ? (
+                                <View style={styles.loadingComments}>
+                                    <ActivityIndicator size="small" color={BLUE} />
+                                    <Text style={styles.loadingCommentsText}>Loading comments...</Text>
+                                </View>
+                            ) : comments.length === 0 ? (
+                                <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+                            ) : (
+                                <FlatList
+                                    data={comments.length > 0 ? comments : [
+                                        {id: '1', name: 'User', comment: 'naisc sbfci sncjbi jsdbci', timestamp: new Date()},
+                                        {id: '2', name: 'User', comment: 'naisc sbfci sncjbi jsdbci', timestamp: new Date()}
+                                    ]}
+                                    keyExtractor={(item) => item.id.toString()}
+                                    renderItem={({ item }) => (
+                                        <View style={styles.commentItem}>
+                                            <View style={styles.commentHeader}>
+                                                <View style={styles.profileInitial}>
+                                                    <Text style={styles.initialText}>
+                                                        {item.name.charAt(0).toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.commentDetails}>
+                                                    <Text style={styles.commenterName}>{item.name}</Text>
+                                                    <Text style={styles.commentTime}>
+                                                        {new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <Text style={styles.commentContent}>{item.comment}</Text>
+                                        </View>
+                                    )}
+                                />
+                            )}
+                        </View>
+                        
+                        <View style={styles.commentInputContainer}>
+                            <Image source={ACCOUNT} style={styles.commentUserImage} />
+                            <TextInput
+                                style={styles.commentInput}
+                                placeholder="Add a comment..."
+                                value={newComment}
+                                onChangeText={setNewComment}
+                                placeholderTextColor={GREY}
+                            />
+                            <TouchableOpacity 
+                                style={[
+                                    styles.postButton, 
+                                    !newComment.trim() && styles.disabledButton
+                                ]}
+                                onPress={handleAddComment}
+                                disabled={!newComment.trim() || posting}
+                            >
+                                <Text style={styles.postButtonText}>Post</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+                
+                {showLoginAlert && (
+                    <View style={styles.alertOverlay}>
+                        <MyAlert
+                            visible={showLoginAlert}
+                            title="Login Required"
+                            message="Please log in to comment on this news"
+                            textLeft="Cancel"
+                            textRight="Login"
+                            backgroundColor={BLUE}
+                            onPressLeft={() => setShowLoginAlert(false)}
+                            onPressRight={() => {
+                                setShowLoginAlert(false);
+                                setCommentModalVisible(false);
+                                setTimeout(() => {
+                                    navigation.navigate("LoginSignup", {
+                                        returnScreen: "Home",
+                                        params: { newsData }
+                                    });
+                                }, 300);
+                            }}
+                        />
+                    </View>
+                )}
+            </Modal>
+        );
+    };
+
+    // Handle opening the comment modal
+    const handleCommentPress = () => {
+        setCommentModalVisible(true);
+    };
+
     return (
         <>
             <MyStatusBar backgroundColor={WHITE} />
@@ -943,32 +1050,42 @@ export default HomeNews = ({ route, navigation }) => {
                     <Text style={styles.title}>{newsData?.headline || ''}</Text>
 
                     <View style={styles.actionRow}>
-                        <View style={{ flexDirection: "row" }}>
-                            <View style={styles.actionButtonContainer}>
-                                <TouchableOpacity 
-                                    onPress={handleLike} 
-                                    style={styles.actionButton} 
-                                    activeOpacity={0.7}
-                                    disabled={liking}
-                                >
-                                    <Image source={liked ? PRESSLIKE : LIKE} style={styles.actionIcon} />
-                                </TouchableOpacity>
-                                <Text style={styles.actionCountText}>
-                                    {likeCount > 999 ? (likeCount / 1000).toFixed(1) + 'k' : likeCount}
-                                </Text>
+                        <View style={styles.leftActions}>
+                            <TouchableOpacity 
+                                onPress={handleLike}
+                                style={styles.actionButton}
+                                activeOpacity={0.7}
+                                disabled={liking}
+                            >
+                                <Image source={liked ? PRESSLIKE : LIKE} style={styles.actionIcon} />
+                                <Text style={styles.countText}>{likeCount}</Text>
+                            </TouchableOpacity>
+
+                            <View style={styles.viewCountContainer}>
+                                <Image source={VIEW} style={styles.actionIcon} />
+                                <Text style={styles.countText}>{viewCount}</Text>
                             </View>
-                            <View style={styles.actionButtonContainer}>
-                                <TouchableOpacity style={[styles.actionButton, { marginRight: WIDTH * 0.02 }]} activeOpacity={0.7}>
-                                    <Image source={VIEW} style={styles.actionIcon} />
-                                </TouchableOpacity>
-                                <Text style={styles.actionCountText}>
-                                    {viewCount > 999 ? (viewCount / 1000).toFixed(1) + 'k' : viewCount}
-                                </Text>
-                            </View>
+                            
+                            <TouchableOpacity 
+                                onPress={handleCommentPress}
+                                style={styles.actionButton}
+                                activeOpacity={0.7}
+                            >
+                                <Image source={COMMENT} style={styles.actionIcon} />
+                                <Text style={styles.actionText}>Comments</Text>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={handleWhatsAppShare} style={[styles.actionButton, { marginBottom: HEIGHT * 0.03 }]} activeOpacity={0.7}>
-                            <Image source={WHATSAPP} style={styles.actionIcon} />
-                        </TouchableOpacity>
+
+                        <View style={styles.rightActions}>
+                            <TouchableOpacity 
+                                onPress={handleWhatsAppShare}
+                                style={styles.actionButton}
+                                activeOpacity={0.7}
+                            >
+                                <Image source={WHATSAPP} style={styles.actionIcon} />
+                                <Text style={styles.actionText}>Share</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
                     {contentHasHtml ? (
@@ -981,67 +1098,6 @@ export default HomeNews = ({ route, navigation }) => {
                     ) : (
                         <Text style={styles.content}>{content}</Text>
                     )}
-
-                    <View style={[styles.card, { marginTop: HEIGHT * 0.02, marginBottom: HEIGHT * 0.08 }]}>
-                        <View style={styles.commentsHeader}>
-                            <Text style={styles.commentsHeading}>Comments</Text>
-                            <Text style={styles.commentsCount}>{comments.length}</Text>
-                        </View>
-
-                        {fetchingComments ? (
-                            <View style={styles.loadingContainer}>
-                                <Text style={styles.loadingText}>Loading comments...</Text>
-                            </View>
-                        ) : (
-                            <FlatList
-                                data={comments}
-                                keyExtractor={(item) => item.id.toString()}
-                                renderItem={({ item }) => (
-                                    <View style={styles.commentCard}>
-                                        <View style={styles.initialCircle}>
-                                            <Text style={styles.initialText}>
-                                                {(item.name?.charAt(0) || "A").toUpperCase()}
-                                            </Text>
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <View style={styles.commentHeader}>
-                                                <Text style={styles.commenterName}>
-                                                    {item.name || "Anonymous"}
-                                                </Text>
-                                                <Text style={styles.commentTime}>
-                                                    {item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-                                                </Text>
-                                            </View>
-                                            <Text style={styles.commentText}>{item.comment}</Text>
-                                        </View>
-                                    </View>
-                                )}
-                                ListEmptyComponent={
-                                    <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
-                                }
-                                showsVerticalScrollIndicator={false}
-                                style={{ maxHeight: HEIGHT * 0.3 }}
-                            />
-                        )}
-
-                        <View style={styles.commentInputContainer}>
-                            <TextInput
-                                style={styles.commentInput}
-                                value={newComment}
-                                onChangeText={setNewComment}
-                                placeholder="Write a comment..."
-                                placeholderTextColor={GREY}
-                                editable={!posting}
-                            />
-                            <TouchableOpacity 
-                                onPress={handleAddComment} 
-                                style={[styles.postButton, posting && styles.disabledButton]}
-                                disabled={posting}
-                            >
-                                <Text style={styles.postButtonText}>{posting ? "Posting..." : "Post"}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
                 </ScrollView>
             )}
 
@@ -1076,6 +1132,8 @@ export default HomeNews = ({ route, navigation }) => {
             />
 
             <MyLoader visible={loading} />
+
+            {renderCommentModal()}
         </>
     );
 };
@@ -1105,24 +1163,65 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginVertical: HEIGHT * 0.012,
+        marginVertical: HEIGHT * 0.02,
+        paddingHorizontal: 0,
+        marginLeft: -WIDTH * 0.04,
     },
-    actionButtonContainer: {
-        alignItems: 'center',
-        marginRight: WIDTH * 0.05,
+    leftActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: WIDTH * 0.02,
+        marginLeft: 0,
+        paddingLeft: 0,
+    },
+    rightActions: {
+        alignItems: "center",
     },
     actionButton: {
-        marginRight: WIDTH * 0.05,
+        flexDirection: "row",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: '#eaeaea',
+        borderRadius: WIDTH * 0.1,
+        paddingVertical: HEIGHT * 0.008,
+        paddingHorizontal: WIDTH * 0.03,
+        backgroundColor: 'white',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 1,
+        elevation: 1,
+        marginHorizontal: WIDTH * 0.01,
     },
     actionIcon: {
-        width: WIDTH * 0.06,
-        height: WIDTH * 0.06,
+        width: WIDTH * 0.055,
+        height: WIDTH * 0.055,
+        marginRight: WIDTH * 0.02,
     },
-    actionCountText: {
+    countText: {
         fontSize: WIDTH * 0.03,
         color: BLACK,
-        fontFamily: POPPINSLIGHT,
-        marginTop: 2,
+        fontFamily: BOLDMONTSERRAT,
+    },
+    actionText: {
+        fontSize: WIDTH * 0.03,
+        color: BLACK,
+        fontFamily: BOLDMONTSERRAT,
+    },
+    viewCountContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: '#eaeaea',
+        borderRadius: WIDTH * 0.1,
+        paddingVertical: HEIGHT * 0.008,
+        paddingHorizontal: WIDTH * 0.03,
+        backgroundColor: 'white',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 1,
+        elevation: 1,
     },
     featuredImage: {
         width: '100%',
@@ -1201,27 +1300,35 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
     },
     commentInputContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: HEIGHT * 0.008,
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: WIDTH * 0.03,
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderTopColor: '#EEEEEE',
+    },
+    commentUserImage: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        marginRight: WIDTH * 0.02,
     },
     commentInput: {
         flex: 1,
-        borderBottomWidth: 1,
-        borderColor: BLACK,
-        borderBottomLeftRadius: WIDTH * 0.02,
-        padding: WIDTH * 0.02,
-        fontSize: WIDTH * 0.032,
-        backgroundColor: WHITE,
+        height: HEIGHT * 0.05,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: WIDTH * 0.05,
+        paddingHorizontal: WIDTH * 0.03,
+        marginRight: WIDTH * 0.03,
         fontFamily: POPPINSLIGHT,
-        maxHeight: HEIGHT * 0.05,
+        backgroundColor: '#F7F7F7',
     },
     postButton: {
         backgroundColor: BLUE,
-        paddingHorizontal: WIDTH * 0.025,
-        paddingVertical: HEIGHT * 0.008,
-        borderRadius: WIDTH * 0.01,
-        marginLeft: WIDTH * 0.02,
+        paddingVertical: HEIGHT * 0.01,
+        paddingHorizontal: WIDTH * 0.03,
+        borderRadius: WIDTH * 0.02,
     },
     postButtonText: {
         color: WHITE,
@@ -1229,11 +1336,11 @@ const styles = StyleSheet.create({
         fontSize: WIDTH * 0.03,
     },
     noCommentsText: {
+        fontFamily: POPPINSMEDIUM,
         color: GREY,
-        textAlign: "center",
-        marginVertical: HEIGHT * 0.01,
-        fontFamily: POPPINSLIGHT,
-        fontSize: WIDTH * 0.032,
+        textAlign: 'center',
+        marginVertical: HEIGHT * 0.03,
+        fontSize: WIDTH * 0.04,
     },
     menuPopup: {
         position: "absolute",
@@ -1377,5 +1484,140 @@ const styles = StyleSheet.create({
         fontFamily: POPPINSMEDIUM,
         color: BLACK,
         marginLeft: 3,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: WHITE,
+        borderTopLeftRadius: WIDTH * 0.05,
+        borderTopRightRadius: WIDTH * 0.05,
+        paddingBottom: Platform.OS === 'ios' ? HEIGHT * 0.05 : HEIGHT * 0.02,
+        maxHeight: HEIGHT * 0.7,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        paddingHorizontal: WIDTH * 0.05,
+        paddingVertical: HEIGHT * 0.02,
+    },
+    modalTitle: {
+        fontSize: WIDTH * 0.045,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+    },
+    closeButton: {
+        padding: WIDTH * 0.02,
+    },
+    downArrowIcon: {
+        width: WIDTH * 0.05,
+        height: WIDTH * 0.05,
+    },
+    commentsList: {
+        maxHeight: HEIGHT * 0.5,
+        paddingHorizontal: WIDTH * 0.05,
+    },
+    commentItem: {
+        marginVertical: HEIGHT * 0.01,
+        paddingBottom: HEIGHT * 0.01,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    commentHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    profileInitial: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        backgroundColor: GREY,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: WIDTH * 0.02,
+    },
+    commentDetails: {
+        flex: 1,
+    },
+    commentContent: {
+        fontFamily: POPPINSLIGHT,
+        color: BLACK,
+        fontSize: WIDTH * 0.035,
+        paddingLeft: WIDTH * 0.1,
+    },
+    commentCountHeader: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        padding: WIDTH * 0.02,
+    },
+    commentCountText: {
+        fontSize: WIDTH * 0.04,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+    },
+    loadingComments: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: HEIGHT * 0.02,
+    },
+    loadingCommentsText: {
+        fontSize: WIDTH * 0.035,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+        marginLeft: WIDTH * 0.02,
+    },
+    loginPrompt: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: HEIGHT * 0.02,
+    },
+    loginPromptText: {
+        fontSize: WIDTH * 0.035,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+        marginRight: WIDTH * 0.02,
+    },
+    loginButton: {
+        backgroundColor: BLUE,
+        paddingHorizontal: WIDTH * 0.025,
+        paddingVertical: HEIGHT * 0.008,
+        borderRadius: WIDTH * 0.01,
+    },
+    loginButtonText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.03,
+    },
+    loginToCommentContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: HEIGHT * 0.02,
+    },
+    loginToCommentButton: {
+        backgroundColor: BLUE,
+        paddingHorizontal: WIDTH * 0.025,
+        paddingVertical: HEIGHT * 0.008,
+        borderRadius: WIDTH * 0.01,
+    },
+    loginToCommentText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.03,
+    },
+    alertOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 }); 

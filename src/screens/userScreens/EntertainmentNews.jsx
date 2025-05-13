@@ -1,49 +1,60 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FlatList, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Share, Alert } from "react-native";
-import { BLACK, BLUE, GREY, RED, WHITE } from "../../constants/color";
-import { ACCOUNT, LIKE, PRESSLIKE, THREEDOTS, WHATSAPP, LOGO2, VIEW } from "../../constants/imagePath";
-import YoutubeIframe from "react-native-youtube-iframe";
-import { MyHeader } from "../../components/commonComponents/MyHeader";
-import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
-import { HEIGHT, WIDTH } from "../../constants/config";
-import { POPPINSMEDIUM, POPPINSLIGHT } from "../../constants/fontPath";
-import { ToastMessage } from "../../components/commonComponents/ToastMessage";
-import { MyLoader } from "../../components/commonComponents/MyLoader";
-import { BASE_URL } from "../../constants/url";
-import HTML from 'react-native-render-html';
+import {
+    StyleSheet,
+    View,
+    Text,
+    TouchableOpacity,
+    Image,
+    TextInput,
+    FlatList,
+    ScrollView,
+    Linking,
+    Alert,
+    Share,
+    Modal,
+    Platform,
+    ActivityIndicator,
+} from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import YoutubeIframe from "react-native-youtube-iframe";
+import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
+import { MyHeader } from "../../components/commonComponents/MyHeader";
+import { MyLoader } from "../../components/commonComponents/MyLoader";
+import { GREY, WHITE, BLUE, RED, BLACK } from "../../constants/color";
+import { ACCOUNT, LIKE, LOGO2, PRESSLIKE, THREEDOTS, WHATSAPP, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
+import { ToastMessage } from "../../components/commonComponents/ToastMessage";
+import { BASE_URL } from "../../constants/url";
 import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
+import { HEIGHT, WIDTH } from "../../constants/config";
+import { POPPINSMEDIUM, POPPINSLIGHT, BOLDMONTSERRAT } from "../../constants/fontPath";
+import HTML from 'react-native-render-html';
 import { getObjByKey, getStringByKey } from "../../utils/Storage";
 import Video from 'react-native-video';
+import { MyAlert } from "../../components/commonComponents/MyAlert";
 
 // Helper function to process URLs (images and videos)
 const processUrl = (url) => {
     if (!url) return null;
     
-    // If it's already a full URL (starts with http:// or https://)
     if (url.startsWith('http://') || url.startsWith('https://')) {
         return url;
     }
     
-    // For paths starting with '/uploads'
     if (url.startsWith('/uploads')) {
         const baseUrlFormatted = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
         return `${baseUrlFormatted}${url}`;
     }
     
-    // For paths starting with 'uploads/' without leading slash
     if (url.startsWith('uploads/')) {
         const baseUrlFormatted = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
         return `${baseUrlFormatted}${url}`;
     }
     
-    // If it's just a filename, assume it's in uploads folder
     if (!url.includes('/')) {
         const baseUrlFormatted = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`;
         return `${baseUrlFormatted}uploads/${url}`;
     }
     
-    // For other paths
     return url;
 };
 
@@ -52,16 +63,14 @@ const VideoPlayer = ({ videoPath }) => {
     const videoRef = useRef(null);
     const [error, setError] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [paused, setPaused] = useState(true); // Start paused
+    const [paused, setPaused] = useState(true);
     
     console.log('[VideoPlayer] Received videoPath:', videoPath);
     
-    // Process the video URL to ensure it's properly formatted with BASE_URL
     const getFullVideoUrl = (path) => {
         return processUrl(path);
     };
     
-    // Create a proper source object for the Video component
     const getVideoSource = () => {
         try {
             if (!videoPath) {
@@ -69,13 +78,11 @@ const VideoPlayer = ({ videoPath }) => {
                 return null;
             }
             
-            // If already an object with uri
             if (typeof videoPath === 'object' && videoPath.uri) {
                 console.log('[VideoPlayer] getVideoSource: Using object with uri:', videoPath.uri);
                 return videoPath;
             }
             
-            // If string path
             if (typeof videoPath === 'string') {
                 const fullUrl = getFullVideoUrl(videoPath);
                 console.log('[VideoPlayer] getVideoSource: Full video URL:', fullUrl);
@@ -108,12 +115,10 @@ const VideoPlayer = ({ videoPath }) => {
         setLoading(false);
     };
     
-    // Handler to toggle play/pause
     const togglePlayback = () => {
         setPaused(!paused);
     };
     
-    // Check if videoSource is valid
     if (!videoSource) {
         console.log('[VideoPlayer] Invalid video source for path:', videoPath);
         return (
@@ -138,8 +143,8 @@ const VideoPlayer = ({ videoPath }) => {
                 style={styles.backgroundVideo}
                 resizeMode="contain"
                 repeat={false}
-                controls={!paused} // Only show controls when playing
-                paused={paused} // Start paused
+                controls={!paused}
+                paused={paused}
                 fullscreen={false}
                 useTextureView={true}
             />
@@ -151,7 +156,6 @@ const VideoPlayer = ({ videoPath }) => {
                 </View>
             )}
             
-            {/* Show play button overlay when paused */}
             {paused && !loading && !error && (
                 <TouchableOpacity 
                     style={[styles.backgroundVideo, styles.playButtonOverlay]}
@@ -173,26 +177,6 @@ const MENU_OPTIONS = [
     { id: '2', name: 'Report Post' },
 ];
 
-// Function to extract YouTube video ID from various URL formats
-const getYoutubeVideoId = (url) => {
-    if (!url) return null;
-    
-    // Regular YouTube URL (youtu.be or youtube.com)
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    
-    if (match && match[2].length === 11) {
-        return match[2];
-    }
-    
-    // If it's already just the ID (11 characters)
-    if (url.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(url)) {
-        return url;
-    }
-    
-    return null;
-};
-
 // Function to check if content has HTML tags
 const hasHtmlTags = (text) => {
     if (!text) return false;
@@ -207,28 +191,10 @@ const removeHtmlTags = (html) => {
 
 export default EntertainmentNews = ({ route, navigation }) => {
     const { newsData } = route.params;
-    console.log('Received newsData in EntertainmentNews:', newsData);
-    console.log('VideoPath in EntertainmentNews:', newsData?.videoPath);
-    
-    // Extract media content: video or image
-    // Support both featured_image and featuredImage property names for compatibility
-    const featuredImage = newsData?.featuredImage || newsData?.featured_image || '';
-    const fullImageUrl = featuredImage ? 
-        (featuredImage.startsWith('/uploads') ? `${BASE_URL}${featuredImage}` : featuredImage) : null;
-    
-    console.log('Featured Image URL:', fullImageUrl);
-    
-    const rawVideoLink = newsData?.video_link || route.params.videoId || '';
-    const videoId = getYoutubeVideoId(rawVideoLink);
-    const youtubeThumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : null;
-    
-    // Determine content type
-    const contentType = newsData?.videoPath ? 'video' : (videoId ? 'youtube' : 'text');
-    
-    const title = newsData?.headline || route.params.title || '';
-    const content = newsData?.content || route.params.news || '';
-    const contentHasHtml = hasHtmlTags(content);
-    
+    console.log('Received newsData in HomeNews:', newsData);
+    console.log('Featured Image URL:', newsData?.featured_image ? `${BASE_URL}${newsData.featured_image}` : null);
+    console.log('VideoPath in HomeNews:', newsData?.videoPath);
+
     const [reaction, setReaction] = useState({});
     const [menuVisible, setMenuVisible] = useState(false);
     const [modalPosition, setModalPosition] = useState({ top: 0, left: 0 });
@@ -239,46 +205,39 @@ export default EntertainmentNews = ({ route, navigation }) => {
         type: ""
     });
     
-    // Login and comment states
     const [userData, setUserData] = useState(null);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState("");
     const [fetchingComments, setFetchingComments] = useState(false);
     const [posting, setPosting] = useState(false);
-
-    // Add new state variables for like and view functionality
     const [likeCount, setLikeCount] = useState(0);
-    const [viewCount, setViewCount] = useState(0); // New state for view count
+    const [viewCount, setViewCount] = useState(0);
     const [liking, setLiking] = useState(false);
-    const [showFullText, setShowFullText] = useState(false);
-    const [isLiked, setIsLiked] = useState(false);
-    const [showSharePopup, setShowSharePopup] = useState(false);
+    const [liked, setLiked] = useState(false);
+    const [commentModalVisible, setCommentModalVisible] = useState(false);
+    const [showLoginAlert, setShowLoginAlert] = useState(false);
 
-    // Check if user is logged in
     useEffect(() => {
         checkLoginStatus();
     }, []);
 
-    // Fetch comments when component mounts
     useEffect(() => {
         if (newsData?.id) {
             fetchComments();
         }
     }, [newsData]);
 
-    // Add effect to fetch like count and view count on component mount
     useEffect(() => {
         if (newsData?.id) {
             fetchLikeCount();
-            fetchViewCount(); // Add call to fetch view count
-            recordView(); // Record a view when the news is opened
+            fetchViewCount();
+            recordView();
         }
     }, [newsData]);
 
     const checkLoginStatus = async () => {
         try {
-            // Try to get token from AsyncStorage
             let userToken = await AsyncStorage.getItem('userToken');
             if (!userToken) {
                 const userStr = await AsyncStorage.getItem('user');
@@ -291,7 +250,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 userToken = await AsyncStorage.getItem('loginResponse');
             }
             
-            // Get user data
             let userData;
             try {
                 const userStr = await AsyncStorage.getItem('user');
@@ -302,19 +260,13 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 console.error("Error getting user data:", error);
             }
             
-            console.log("Login check - Token found:", !!userToken);
-            console.log("Login check - User data found:", !!userData);
-            
             if (userToken && userData) {
-                // Make sure token is stored in the expected location
                 await AsyncStorage.setItem('loginResponse', userToken);
                 setIsLoggedIn(true);
                 setUserData(userData);
-                console.log("User logged in as:", userData?.username || "Unknown");
             } else {
                 setIsLoggedIn(false);
                 setUserData(null);
-                console.log("User not logged in");
             }
         } catch (error) {
             console.error("Error checking login status:", error);
@@ -325,7 +277,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
     const fetchComments = async () => {
         setFetchingComments(true);
         try {
-            // Get the news ID
             const targetNewsId = newsData?.id;
             if (!targetNewsId) {
                 console.error("No news ID available for fetching comments");
@@ -333,9 +284,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 return;
             }
             
-            console.log(`Fetching comments for news ID: ${targetNewsId}`);
-            
-            // Try to get token for authenticated request
             let userToken = await AsyncStorage.getItem('userToken');
             if (!userToken) {
                 const userStr = await AsyncStorage.getItem('user');
@@ -348,43 +296,27 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 userToken = await AsyncStorage.getItem('loginResponse');
             }
             
-            // Set auth flag based on token availability
             const isAuthenticated = !!userToken;
             if (isAuthenticated) {
-                console.log("Fetching comments with authentication");
                 await AsyncStorage.setItem('loginResponse', userToken);
-            } else {
-                console.log("Fetching comments without authentication");
             }
             
-            // Make API request to get comments
             const commentsEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/comments`;
-            console.log(`Comments endpoint: ${commentsEndpoint}`);
-            
             const response = await GETNETWORK(commentsEndpoint, isAuthenticated);
-            console.log("Comments API response:", response);
             
-            // Extract comments from potentially nested response structure
             let commentsData = [];
             
-            // Handle different response formats
             if (response) {
                 if (Array.isArray(response.data)) {
                     commentsData = response.data;
-                    console.log(`Found ${commentsData.length} comments in direct array`);
                 } else if (response.data?.data && Array.isArray(response.data.data)) {
                     commentsData = response.data.data;
-                    console.log(`Found ${commentsData.length} comments in nested data.data array`);
                 } else if (response.data?.comments && Array.isArray(response.data.comments)) {
                     commentsData = response.data.comments;
-                    console.log(`Found ${commentsData.length} comments in data.comments array`);
                 } else if (response.data) {
-                    console.log("Response format not recognized, attempting to extract comments", response.data);
-                    // Try to extract any array that might contain comments
                     for (const key in response.data) {
                         if (Array.isArray(response.data[key])) {
                             commentsData = response.data[key];
-                            console.log(`Found possible comments array in key: ${key} with ${commentsData.length} items`);
                             break;
                         }
                     }
@@ -392,10 +324,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
             }
             
             if (commentsData && commentsData.length > 0) {
-                console.log(`Processing ${commentsData.length} comments`);
-                console.log("Sample comment data:", commentsData[0]);
-                
-                // Transform API response to our comment format
                 const formattedComments = commentsData.map(item => ({
                     id: item.id || Math.random().toString(),
                     name: item.user?.username || item.username || item.user_name || "Anonymous",
@@ -403,20 +331,38 @@ export default EntertainmentNews = ({ route, navigation }) => {
                     timestamp: new Date(item.createdAt || item.created_at || item.timestamp || Date.now())
                 }));
                 
-                // Sort comments by timestamp (newest first)
                 formattedComments.sort((a, b) => b.timestamp - a.timestamp);
-                
                 setComments(formattedComments);
             } else {
-                console.log("No comments found in response");
+                // If no comments are returned but we got a valid response, set empty array
                 setComments([]);
             }
         } catch (error) {
             console.error("Error fetching comments:", error);
+            // On error, set empty comments array
+            setComments([]);
         } finally {
             setFetchingComments(false);
         }
     };
+
+    const getYoutubeVideoId = (url) => {
+        if (!url) return null;
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    };
+
+    const videoId = newsData?.video_link ? getYoutubeVideoId(newsData.video_link) : null;
+    const fullImageUrl = newsData?.featured_image ? 
+        (newsData.featured_image.startsWith('http') ? 
+            newsData.featured_image : 
+            `${BASE_URL}${newsData.featured_image.replace(/^\/+/, '')}`) : 
+        null;
+    
+    const contentType = newsData?.videoPath ? 'video' : (videoId ? 'youtube' : 'text');
+    const content = newsData?.content || '';
+    const contentHasHtml = hasHtmlTags(content);
 
     const handleThreeDotsLayout = (event) => {
         event.target.measure((fx, fy, width, height, px, py) => {
@@ -431,13 +377,13 @@ export default EntertainmentNews = ({ route, navigation }) => {
     const handleMenuOption = (optionId) => {
         setMenuVisible(false);
         
-        if (optionId === '1') { // Save Post
+        if (optionId === '1') {
             setToastMessage({
                 visible: true,
                 message: "Post saved successfully",
                 type: "success"
             });
-        } else if (optionId === '2') { // Report Post
+        } else if (optionId === '2') {
             setToastMessage({
                 visible: true,
                 message: "Post reported successfully",
@@ -446,46 +392,37 @@ export default EntertainmentNews = ({ route, navigation }) => {
         }
     };
 
-    const [liked, setLiked] = useState(false);
-
     const onNavigateBack = () => {
         navigation.goBack();
     };
 
     const handleLike = async () => {
-        // Check if user is logged in
         if (!isLoggedIn) {
-            // If not logged in, redirect to login screen
             setToastMessage({
                 visible: true,
-                message: "Please log in to like this news",
+                message: "Please log in to like this post",
                 type: "error"
             });
             
             setTimeout(() => {
                 navigation.navigate("LoginSignup", { 
-                    returnScreen: "EntertainmentNews",
+                    returnScreen: "Home",
                     params: { newsData }
                 });
             }, 1500);
             return;
         }
         
-        // Start loading state
         setLiking(true);
         
         try {
-            // Get the news ID
             const targetNewsId = newsData?.id;
             if (!targetNewsId) {
                 throw new Error("No news ID available for liking");
             }
             
-            // Toggle like status
             const newLikedStatus = !liked;
-            console.log(`${newLikedStatus ? 'Liking' : 'Unliking'} news ID: ${targetNewsId}`);
             
-            // Get token for authenticated request
             let userToken = await AsyncStorage.getItem('userToken');
             if (!userToken) {
                 const userStr = await AsyncStorage.getItem('user');
@@ -498,87 +435,58 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 userToken = await AsyncStorage.getItem('loginResponse');
             }
             
-            // Validate token
             if (!userToken) {
                 throw new Error("No authentication token found");
             }
             
-            // Store token in AsyncStorage for POSTNETWORK
             await AsyncStorage.setItem('loginResponse', userToken);
             
-            // Calculate new like count
             const newLikeCount = newLikedStatus ? likeCount + 1 : Math.max(0, likeCount - 1);
             
-            // Update UI first for immediate feedback
             setLiked(newLikedStatus);
             setLikeCount(newLikeCount);
             
-            // Store the new like count in AsyncStorage
             try {
                 const likeCountKey = `likeCount_${targetNewsId}`;
                 await AsyncStorage.setItem(likeCountKey, newLikeCount.toString());
-                console.log(`Updated like count in AsyncStorage: ${newLikeCount}`);
             } catch (error) {
                 console.error("Error updating like count in AsyncStorage:", error);
             }
             
-            // Persist like status in AsyncStorage
             try {
                 const likedPostsStr = await AsyncStorage.getItem('likedPosts');
                 let likedPosts = likedPostsStr ? JSON.parse(likedPostsStr) : {};
                 
                 if (newLikedStatus) {
-                    // Add to liked posts
                     likedPosts[targetNewsId] = true;
                 } else {
-                    // Remove from liked posts
                     delete likedPosts[targetNewsId];
                 }
                 
                 await AsyncStorage.setItem('likedPosts', JSON.stringify(likedPosts));
-                console.log(`Saved like status in AsyncStorage: ${newLikedStatus}`);
             } catch (error) {
                 console.error("Error saving like status in AsyncStorage:", error);
             }
             
-            // Use the correct API endpoint as provided
             const likeEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/like`;
-            console.log(`Using like endpoint: ${likeEndpoint}`);
-            
-            // Make the API request with empty payload and auth token
             const response = await POSTNETWORK(likeEndpoint, {}, true);
-            console.log("Like API response:", response);
             
-            // Even if the API call fails, maintain the like state based on local storage
-            // This ensures the like persists until explicitly unliked
             if (response && response.success !== false) {
-                console.log(`Successfully ${newLikedStatus ? 'liked' : 'unliked'} news`);
-                
-                // Show success message
                 setToastMessage({
                     visible: true,
                     message: newLikedStatus ? "News liked successfully" : "News unliked successfully",
                     type: "success"
                 });
             } else {
-                // Only show error message, don't revert UI changes
-                console.log("API request had issues, but maintaining UI state");
-                
-                // Show error message but keep the UI updated
                 setToastMessage({
                     visible: true,
                     message: "Like recorded locally. Will sync when connection improves.",
                     type: "info"
                 });
-                
-                if (response && response.message) {
-                    console.error("API error:", response.message);
-                }
             }
         } catch (error) {
             console.error(`Error ${liked ? 'unliking' : 'liking'} news:`, error);
             
-            // Handle unauthorized error (401)
             if (error.message?.includes("unauthorized") || error.message?.includes("401")) {
                 setToastMessage({
                     visible: true,
@@ -588,12 +496,11 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 
                 setTimeout(() => {
                     navigation.navigate("LoginSignup", { 
-                        returnScreen: "EntertainmentNews",
+                        returnScreen: "Home",
                         params: { newsData }
                     });
                 }, 1500);
             } else {
-                // For other errors, still maintain the like state
                 setToastMessage({
                     visible: true,
                     message: "Like status saved locally",
@@ -607,32 +514,22 @@ export default EntertainmentNews = ({ route, navigation }) => {
 
     const handleWhatsAppShare = async () => {
         try {
-            // Remove HTML tags function
-            const removeHtmlTags = (text) => {
-                if (!text) return '';
-                return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
-            };
-
-            let shareMessage = `${removeHtmlTags(title)}\n\n`;
+            let shareMessage = `${removeHtmlTags(newsData.headline)}\n\n`;
             
-            // Add a snippet of content (first 100 characters) with HTML tags removed
-            if (content) {
-                const cleanContent = removeHtmlTags(content);
+            if (newsData.content) {
+                const cleanContent = removeHtmlTags(newsData.content);
                 const contentPreview = cleanContent.length > 100 
                     ? cleanContent.substring(0, 100) + '...' 
                     : cleanContent;
                 shareMessage += `${contentPreview}\n\n`;
             }
 
-            // Add read more link with specific news ID for direct access
             shareMessage += `Read more at: https://newztok.in/news/${newsData.id}`;
 
-            // Prepare share options
             const shareOptions = {
                 message: shareMessage,
             };
 
-            // Add media URL based on content type
             if (contentType === 'youtube' && videoId) {
                 shareOptions.url = `https://www.youtube.com/watch?v=${videoId}`;
             } else if (contentType === 'video' && newsData.videoPath) {
@@ -643,7 +540,7 @@ export default EntertainmentNews = ({ route, navigation }) => {
 
             await Share.share(shareOptions, {
                 dialogTitle: 'Share News',
-                subject: removeHtmlTags(title)
+                subject: removeHtmlTags(newsData.headline)
             });
         } catch (error) {
             console.error("Error sharing news: ", error);
@@ -656,25 +553,10 @@ export default EntertainmentNews = ({ route, navigation }) => {
     };
 
     const handleAddComment = async () => {
-        // Check if user is logged in
         if (!isLoggedIn) {
-            // If not logged in, redirect to login screen
-            setToastMessage({
-                visible: true,
-                message: "Please log in to comment",
-                type: "error"
-            });
-            
-            setTimeout(() => {
-                navigation.navigate("LoginSignup", { 
-                    returnScreen: "EntertainmentNews",
-                    params: { newsData }
-                });
-            }, 1500);
+            setShowLoginAlert(true);
             return;
         }
-        
-        // Validate comment content
         if (!newComment.trim()) {
             setToastMessage({
                 visible: true,
@@ -683,20 +565,13 @@ export default EntertainmentNews = ({ route, navigation }) => {
             });
             return;
         }
-        
-        // Start loading state
         setPosting(true);
-        
         try {
-            // Get the news ID
             const targetNewsId = newsData?.id;
             if (!targetNewsId) {
                 throw new Error("No news ID available for posting comment");
             }
             
-            console.log(`Posting comment for news ID: ${targetNewsId}`);
-            
-            // Get token for authenticated request
             let userToken = await AsyncStorage.getItem('userToken');
             if (!userToken) {
                 const userStr = await AsyncStorage.getItem('user');
@@ -709,31 +584,18 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 userToken = await AsyncStorage.getItem('loginResponse');
             }
             
-            // Validate token
             if (!userToken) {
                 throw new Error("No authentication token found");
             }
             
-            // Store token in AsyncStorage for POSTNETWORK
             await AsyncStorage.setItem('loginResponse', userToken);
-            console.log("Using token for comment POST");
             
-            // Create comment payload - try text field first (most common API format)
             const commentPayload = { text: newComment.trim() };
-            
-            // Make API request to post comment
             const commentEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/comment`;
-            console.log(`Comment POST endpoint: ${commentEndpoint}`);
-            console.log("Comment payload:", commentPayload);
             
             const response = await POSTNETWORK(commentEndpoint, commentPayload, true);
-            console.log("Comment POST response:", response);
             
             if (response && (response.success || response.data?.success)) {
-                // Comment posted successfully
-                console.log("Comment posted successfully");
-                
-                // Add to local state first for immediate feedback
                 const newCommentObj = {
                     id: response.data?.id || response.data?.data?.id || Math.random().toString(),
                     name: userData?.username || "Me",
@@ -741,27 +603,19 @@ export default EntertainmentNews = ({ route, navigation }) => {
                     timestamp: new Date()
                 };
                 
-                // Add to the beginning of the list (newest first)
                 setComments(prevComments => [newCommentObj, ...prevComments]);
-                
-                // Clear the input
                 setNewComment("");
                 
-                // Show success message
                 setToastMessage({
                     visible: true,
                     message: "Comment posted successfully",
                     type: "success"
                 });
                 
-                // Fetch all comments to get the updated list
                 setTimeout(() => {
                     fetchComments();
                 }, 500);
             } else {
-                // If default payload format failed, try alternative formats
-                console.log("First attempt failed, trying alternative payload formats");
-                
                 const alternativePayloads = [
                     { comment: newComment.trim() },
                     { content: newComment.trim() },
@@ -771,14 +625,9 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 let success = false;
                 
                 for (const payload of alternativePayloads) {
-                    console.log("Trying payload format:", payload);
                     const retryResponse = await POSTNETWORK(commentEndpoint, payload, true);
                     
                     if (retryResponse && (retryResponse.success || retryResponse.data?.success)) {
-                        // Comment posted successfully with alternative payload
-                        console.log("Comment posted successfully with alternative payload");
-                        
-                        // Add to local state
                         const newCommentObj = {
                             id: retryResponse.data?.id || retryResponse.data?.data?.id || Math.random().toString(),
                             name: userData?.username || "Me",
@@ -811,7 +660,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
         } catch (error) {
             console.error("Error posting comment:", error);
             
-            // Handle unauthorized error (401)
             if (error.message?.includes("unauthorized") || error.message?.includes("401")) {
                 setToastMessage({
                     visible: true,
@@ -819,14 +667,8 @@ export default EntertainmentNews = ({ route, navigation }) => {
                     type: "error"
                 });
                 
-                setTimeout(() => {
-                    navigation.navigate("LoginSignup", { 
-                        returnScreen: "EntertainmentNews",
-                        params: { newsData }
-                    });
-                }, 1500);
+                setShowLoginAlert(true);
             } else {
-                // General error
                 setToastMessage({
                     visible: true,
                     message: error.message || "Failed to post comment",
@@ -838,24 +680,16 @@ export default EntertainmentNews = ({ route, navigation }) => {
         }
     };
 
-    // Add fetchLikeCount function
     const fetchLikeCount = async () => {
         try {
             const targetNewsId = newsData?.id;
-            if (!targetNewsId) {
-                console.error("No news ID available for fetching like count");
-                return;
-            }
+            if (!targetNewsId) return;
             
-            console.log(`Fetching like count for news ID: ${targetNewsId}`);
-            
-            // First check AsyncStorage for cached like counts
             try {
                 const likeCountsStr = await AsyncStorage.getItem('likeCounts');
                 if (likeCountsStr) {
                     const likeCounts = JSON.parse(likeCountsStr);
                     if (likeCounts[targetNewsId] !== undefined) {
-                        console.log(`Found stored like count: ${likeCounts[targetNewsId]}`);
                         setLikeCount(likeCounts[targetNewsId]);
                     }
                 }
@@ -863,7 +697,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 console.error("Error retrieving like count from AsyncStorage:", storageError);
             }
             
-            // Then try API
             try {
                 const likeCountEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/like/count`;
                 const response = await GETNETWORK(likeCountEndpoint);
@@ -876,7 +709,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
                     
                     setLikeCount(count);
                     
-                    // Store in AsyncStorage
                     try {
                         const likeCountsStr = await AsyncStorage.getItem('likeCounts');
                         let likeCounts = likeCountsStr ? JSON.parse(likeCountsStr) : {};
@@ -886,7 +718,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
                         console.error("Error storing like count:", error);
                     }
                     
-                    // Check if user has liked
                     const userHasLiked = response.data?.user_has_liked || 
                                        response.data?.is_liked || 
                                        response.data?.liked || false;
@@ -895,14 +726,11 @@ export default EntertainmentNews = ({ route, navigation }) => {
                         setLiked(true);
                         setLikeCount(prevCount => Math.max(prevCount, 1));
                     }
-                    
-                    return;
                 }
             } catch (apiError) {
                 console.log("Error fetching from API:", apiError);
             }
             
-            // Check liked status in AsyncStorage
             try {
                 const likedPostsStr = await AsyncStorage.getItem('likedPosts');
                 if (likedPostsStr) {
@@ -916,18 +744,8 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 console.error("Error checking liked status:", error);
             }
             
-            // Fallback to news data
             if (newsData?.likes_count !== undefined) {
                 setLikeCount(newsData.likes_count || 0);
-                
-                try {
-                    const likeCountsStr = await AsyncStorage.getItem('likeCounts');
-                    let likeCounts = likeCountsStr ? JSON.parse(likeCountsStr) : {};
-                    likeCounts[targetNewsId] = newsData.likes_count || 0;
-                    await AsyncStorage.setItem('likeCounts', JSON.stringify(likeCounts));
-                } catch (error) {
-                    console.error("Error storing like count from news data:", error);
-                }
             }
             
             if (newsData?.user_has_liked) {
@@ -940,24 +758,16 @@ export default EntertainmentNews = ({ route, navigation }) => {
         }
     };
 
-    // Add fetchViewCount function after fetchLikeCount
     const fetchViewCount = async () => {
         try {
             const targetNewsId = newsData?.id;
-            if (!targetNewsId) {
-                console.error("No news ID available for fetching view count");
-                return;
-            }
+            if (!targetNewsId) return;
             
-            console.log(`Fetching view count for news ID: ${targetNewsId}`);
-            
-            // First check AsyncStorage for cached view counts
             try {
                 const viewCountsStr = await AsyncStorage.getItem('viewCounts');
                 if (viewCountsStr) {
                     const viewCounts = JSON.parse(viewCountsStr);
                     if (viewCounts[targetNewsId] !== undefined) {
-                        console.log(`Found stored view count: ${viewCounts[targetNewsId]}`);
                         setViewCount(viewCounts[targetNewsId]);
                     }
                 }
@@ -965,10 +775,9 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 console.error("Error retrieving view count from AsyncStorage:", storageError);
             }
             
-            // Try API - don't need authentication for view count
             try {
                 const viewCountEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/view/count`;
-                const response = await GETNETWORK(viewCountEndpoint, false); // false means no auth required
+                const response = await GETNETWORK(viewCountEndpoint, false);
                 
                 if (response?.success && response?.data) {
                     const count = response.data?.count || 
@@ -978,7 +787,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
                     
                     setViewCount(count);
                     
-                    // Store in AsyncStorage
                     try {
                         const viewCountsStr = await AsyncStorage.getItem('viewCounts');
                         let viewCounts = viewCountsStr ? JSON.parse(viewCountsStr) : {};
@@ -987,25 +795,13 @@ export default EntertainmentNews = ({ route, navigation }) => {
                     } catch (error) {
                         console.error("Error storing view count:", error);
                     }
-                    
-                    return;
                 }
             } catch (apiError) {
                 console.log("Error fetching view count from API:", apiError);
             }
             
-            // Fallback to news data
             if (newsData?.views_count !== undefined) {
                 setViewCount(newsData.views_count || 0);
-                
-                try {
-                    const viewCountsStr = await AsyncStorage.getItem('viewCounts');
-                    let viewCounts = viewCountsStr ? JSON.parse(viewCountsStr) : {};
-                    viewCounts[targetNewsId] = newsData.views_count || 0;
-                    await AsyncStorage.setItem('viewCounts', JSON.stringify(viewCounts));
-                } catch (error) {
-                    console.error("Error storing view count from news data:", error);
-                }
             }
             
         } catch (error) {
@@ -1013,21 +809,13 @@ export default EntertainmentNews = ({ route, navigation }) => {
         }
     };
     
-    // Add function to record a view
     const recordView = async () => {
         try {
             const targetNewsId = newsData?.id;
-            if (!targetNewsId) {
-                console.error("No news ID available for recording view");
-                return;
-            }
+            if (!targetNewsId) return;
             
-            console.log(`Recording view for news ID: ${targetNewsId}`);
-            
-            // Increment local view count immediately for better UX
             setViewCount(prevCount => prevCount + 1);
             
-            // Try to update AsyncStorage
             try {
                 const viewCountsStr = await AsyncStorage.getItem('viewCounts');
                 let viewCounts = viewCountsStr ? JSON.parse(viewCountsStr) : {};
@@ -1037,19 +825,14 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 console.error("Error updating view count in AsyncStorage:", error);
             }
             
-            // Send view to API without requiring authentication
             const viewEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/view`;
-            await POSTNETWORK(viewEndpoint, {}, false); // false means no auth token required
+            await POSTNETWORK(viewEndpoint, {}, false);
             
-            console.log(`View recorded for news ID: ${targetNewsId}`);
         } catch (error) {
             console.error("Error recording view:", error);
-            // Don't revert the UI update even if API call fails
-            // This provides better user experience
         }
     };
 
-    // HTML rendering options for proper styling
     const htmlStyles = {
         p: {
             fontSize: WIDTH * 0.038,
@@ -1090,22 +873,134 @@ export default EntertainmentNews = ({ route, navigation }) => {
         }
     };
 
+    // Comment modal component
+    const renderCommentModal = () => {
+        return (
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={commentModalVisible}
+                onRequestClose={() => setCommentModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Comment</Text>
+                            <TouchableOpacity 
+                                style={styles.closeButton} 
+                                onPress={() => setCommentModalVisible(false)}
+                            >
+                                <Image source={DOWNARROW} style={styles.downArrowIcon} />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.commentCountHeader}>
+                            <Text style={styles.commentCountText}>{comments.length}</Text>
+                        </View>
+                        
+                        <View style={styles.commentsList}>
+                            {fetchingComments ? (
+                                <View style={styles.loadingComments}>
+                                    <ActivityIndicator size="small" color={BLUE} />
+                                    <Text style={styles.loadingCommentsText}>Loading comments...</Text>
+                                </View>
+                            ) : comments.length === 0 ? (
+                                <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+                            ) : (
+                                <FlatList
+                                    data={comments.length > 0 ? comments : [
+                                        {id: '1', name: 'User', comment: 'naisc sbfci sncjbi jsdbci', timestamp: new Date()},
+                                        {id: '2', name: 'User', comment: 'naisc sbfci sncjbi jsdbci', timestamp: new Date()}
+                                    ]}
+                                    keyExtractor={(item) => item.id.toString()}
+                                    renderItem={({ item }) => (
+                                        <View style={styles.commentItem}>
+                                            <View style={styles.commentHeader}>
+                                                <View style={styles.profileInitial}>
+                                                    <Text style={styles.initialText}>
+                                                        {item.name.charAt(0).toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.commentDetails}>
+                                                    <Text style={styles.commenterName}>{item.name}</Text>
+                                                    <Text style={styles.commentTime}>
+                                                        {new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <Text style={styles.commentContent}>{item.comment}</Text>
+                                        </View>
+                                    )}
+                                />
+                            )}
+                        </View>
+                        
+                        <View style={styles.commentInputContainer}>
+                            <Image source={ACCOUNT} style={styles.commentUserImage} />
+                            <TextInput
+                                style={styles.commentInput}
+                                placeholder="Add a comment..."
+                                value={newComment}
+                                onChangeText={setNewComment}
+                                placeholderTextColor={GREY}
+                            />
+                            <TouchableOpacity 
+                                style={[
+                                    styles.postButton, 
+                                    !newComment.trim() && styles.disabledButton
+                                ]}
+                                onPress={handleAddComment}
+                                disabled={!newComment.trim() || posting}
+                            >
+                                <Text style={styles.postButtonText}>Post</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+                
+                {showLoginAlert && (
+                    <View style={styles.alertOverlay}>
+                        <MyAlert
+                            visible={showLoginAlert}
+                            title="Login Required"
+                            message="Please log in to comment on this news"
+                            textLeft="Cancel"
+                            textRight="Login"
+                            backgroundColor={BLUE}
+                            onPressLeft={() => setShowLoginAlert(false)}
+                            onPressRight={() => {
+                                setShowLoginAlert(false);
+                                setCommentModalVisible(false);
+                                setTimeout(() => {
+                                    navigation.navigate("LoginSignup", {
+                                        returnScreen: "Home",
+                                        params: { newsData }
+                                    });
+                                }, 300);
+                            }}
+                        />
+                    </View>
+                )}
+            </Modal>
+        );
+    };
+
+    // Handle opening the comment modal
+    const handleCommentPress = () => {
+        setCommentModalVisible(true);
+    };
+
     return (
         <>
-            {/* Status Bar */}
             <MyStatusBar backgroundColor={WHITE} />
-
-            {/* Header */}
             <MyHeader showLocationDropdown={false} onPressBack={onNavigateBack} />
 
-            {/* Main Container */}
             {loading ? (
                 <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
                     <Text style={{fontFamily: POPPINSLIGHT}}>Loading...</Text>
                 </View>
             ) : (
                 <ScrollView style={styles.container}>
-                    {/* Media Content - Video Player, YouTube, or Image */}
                     {contentType === 'youtube' && videoId ? (
                         <View style={styles.videoContainer}>
                             <YoutubeIframe 
@@ -1116,54 +1011,83 @@ export default EntertainmentNews = ({ route, navigation }) => {
                         </View>
                     ) : contentType === 'video' && newsData.videoPath ? (
                         <VideoPlayer videoPath={newsData.videoPath} />
-                    ) : youtubeThumbnailUrl ? (
-                        <Image
-                            source={{ uri: youtubeThumbnailUrl }}
-                            style={styles.featuredImage}
-                            resizeMode="cover"
-                        />
                     ) : fullImageUrl ? (
-                        <Image
-                            source={{ uri: fullImageUrl }}
-                            style={styles.featuredImage}
-                            resizeMode="cover"
-                        />
-                    ) : null}
-
-                    {/* News Title */}
-                    <Text style={styles.title}>{title}</Text>
-
-                    {/* Action Buttons */}
-                    <View style={styles.actionRow}>
-                        <View style={styles.actionButtonsContainer}>
-                            <View style={styles.likeContainer}>
-                                <TouchableOpacity 
-                                    onPress={handleLike} 
-                                    style={styles.actionButton} 
-                                    activeOpacity={0.7}
-                                    disabled={liking}
-                                >
-                                    <Image source={liked ? PRESSLIKE : LIKE} style={styles.actionIcon} />
-                                </TouchableOpacity>
-                                <Text style={styles.actionCountText}>
-                                    {likeCount > 999 ? (likeCount / 1000).toFixed(1) + 'k' : likeCount}
-                                </Text>
-                            </View>
-                            <View style={styles.viewContainer}>
-                                <TouchableOpacity style={styles.actionButton} activeOpacity={0.7}>
-                                    <Image source={VIEW} style={styles.actionIcon} />
-                                </TouchableOpacity>
-                                <Text style={styles.actionCountText}>
-                                    {viewCount > 999 ? (viewCount / 1000).toFixed(1) + 'k' : viewCount}
-                                </Text>
-                            </View>
+                        <View style={styles.imageContainer}>
+                            <Image 
+                                source={{ uri: fullImageUrl }} 
+                                style={styles.featuredImage}
+                                resizeMode="cover"
+                                onError={(e) => {
+                                    console.log('Image load error:', e.nativeEvent.error);
+                                    if (fullImageUrl) {
+                                        let fixedUri = fullImageUrl;
+                                        if (fullImageUrl.includes('/uploads/')) {
+                                            fixedUri = `${BASE_URL}${fullImageUrl.split('/uploads/')[1]}`;
+                                        } 
+                                        else if (fullImageUrl.includes('/images/featuredImage-')) {
+                                            fixedUri = `${BASE_URL}uploads/images/${fullImageUrl.split('/images/featuredImage-')[1]}`;
+                                        }
+                                        else if (fullImageUrl.endsWith('.jpg') || fullImageUrl.endsWith('.png') || fullImageUrl.endsWith('.jpeg')) {
+                                            const filename = fullImageUrl.split('/').pop();
+                                            fixedUri = `${BASE_URL}uploads/images/${filename}`;
+                                        }
+                                        fixedUri = fixedUri.replace(/([^:])\/\//g, '$1/');
+                                        e.currentTarget.setNativeProps({
+                                            source: [{ uri: fixedUri }]
+                                        });
+                                    }
+                                }}
+                            />
                         </View>
-                        <TouchableOpacity onPress={handleWhatsAppShare} style={styles.actionButton} activeOpacity={0.7}>
-                            <Image source={WHATSAPP} style={styles.actionIcon} />
-                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.placeholderImage}>
+                            <Text style={styles.placeholderText}>
+                                {(newsData?.headline || "News").charAt(0).toUpperCase()}
+                            </Text>
+                        </View>
+                    )}
+
+                    <Text style={styles.title}>{newsData?.headline || ''}</Text>
+
+                    <View style={styles.actionRow}>
+                        <View style={styles.leftActions}>
+                            <TouchableOpacity 
+                                onPress={handleLike}
+                                style={styles.actionButton}
+                                activeOpacity={0.7}
+                                disabled={liking}
+                            >
+                                <Image source={liked ? PRESSLIKE : LIKE} style={styles.actionIcon} />
+                                <Text style={styles.countText}>{likeCount}</Text>
+                            </TouchableOpacity>
+
+                            <View style={styles.viewCountContainer}>
+                                <Image source={VIEW} style={styles.actionIcon} />
+                                <Text style={styles.countText}>{viewCount}</Text>
+                            </View>
+                            
+                            <TouchableOpacity 
+                                onPress={handleCommentPress}
+                                style={styles.actionButton}
+                                activeOpacity={0.7}
+                            >
+                                <Image source={COMMENT} style={styles.actionIcon} />
+                                <Text style={styles.actionText}>Comments</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.rightActions}>
+                            <TouchableOpacity 
+                                onPress={handleWhatsAppShare}
+                                style={styles.actionButton}
+                                activeOpacity={0.7}
+                            >
+                                <Image source={WHATSAPP} style={styles.actionIcon} />
+                                <Text style={styles.actionText}>Share</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
 
-                    {/* News Content - Handle HTML if present */}
                     {contentHasHtml ? (
                         <HTML 
                             source={{ html: content }} 
@@ -1174,72 +1098,9 @@ export default EntertainmentNews = ({ route, navigation }) => {
                     ) : (
                         <Text style={styles.content}>{content}</Text>
                     )}
-
-                    {/* Comments Section */}
-                    <View style={[styles.card, { marginTop: HEIGHT * 0.02, marginBottom: HEIGHT * 0.08 }]}>
-                        <View style={styles.commentsHeader}>
-                            <Text style={styles.commentsHeading}>Comments</Text>
-                            <Text style={styles.commentsCount}>{comments.length}</Text>
-                        </View>
-
-                        {fetchingComments ? (
-                            <View style={styles.loadingContainer}>
-                                <Text style={styles.loadingText}>Loading comments...</Text>
-                            </View>
-                        ) : (
-                        <FlatList
-                            data={comments}
-                                keyExtractor={(item) => item.id.toString()}
-                            renderItem={({ item }) => (
-                                <View style={styles.commentCard}>
-                                        <View style={styles.initialCircle}>
-                                            <Text style={styles.initialText}>
-                                                {(item.name?.charAt(0) || "A").toUpperCase()}
-                                            </Text>
-                                        </View>
-                                    <View style={{ flex: 1 }}>
-                                            <View style={styles.commentHeader}>
-                                                <Text style={styles.commenterName}>
-                                                    {item.name || "Anonymous"}
-                                                </Text>
-                                                <Text style={styles.commentTime}>
-                                                    {item.timestamp ? new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-                                                </Text>
-                                            </View>
-                                        <Text style={styles.commentText}>{item.comment}</Text>
-                                    </View>
-                                </View>
-                            )}
-                            ListEmptyComponent={
-                                <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
-                            }
-                            showsVerticalScrollIndicator={false}
-                                style={{ maxHeight: HEIGHT * 0.3 }}
-                        />
-                        )}
-
-                        <View style={styles.commentInputContainer}>
-                            <TextInput
-                                style={styles.commentInput}
-                                value={newComment}
-                                onChangeText={setNewComment}
-                                placeholder="Write a comment..."
-                                placeholderTextColor={GREY}
-                                editable={!posting}
-                            />
-                            <TouchableOpacity 
-                                onPress={handleAddComment} 
-                                style={[styles.postButton, posting && styles.disabledButton]}
-                                disabled={posting}
-                            >
-                                <Text style={styles.postButtonText}>{posting ? "Posting..." : "Post"}</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
                 </ScrollView>
             )}
 
-            {/* Popup Menu */}
             {menuVisible && (
                 <View style={[styles.menuPopup, { top: modalPosition.top, right: WIDTH * 0.05 }]}>
                     {MENU_OPTIONS.map((item) => (
@@ -1259,7 +1120,6 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 </View>
             )}
 
-            {/* Toast Message */}
             <ToastMessage
                 message={toastMessage.message}
                 visible={toastMessage.visible}
@@ -1271,7 +1131,9 @@ export default EntertainmentNews = ({ route, navigation }) => {
                 image={LOGO2}
             />
 
-            <MyLoader visible={loading || posting} />
+            <MyLoader visible={loading} />
+
+            {renderCommentModal()}
         </>
     );
 };
@@ -1281,12 +1143,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: WHITE,
         padding: WIDTH * 0.05,
-    },
-    featuredImage: {
-        width: '100%',
-        height: HEIGHT * 0.3,
-        borderRadius: WIDTH * 0.025,
-        marginBottom: HEIGHT * 0.018,
     },
     title: {
         fontSize: WIDTH * 0.045,
@@ -1306,35 +1162,72 @@ const styles = StyleSheet.create({
     actionRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginVertical: HEIGHT * 0.012,
+        alignItems: "center",
+        marginVertical: HEIGHT * 0.02,
+        paddingHorizontal: 0,
+        marginLeft: -WIDTH * 0.04,
     },
-    actionButtonsContainer: {
+    leftActions: {
         flexDirection: "row",
-        alignItems: "flex-start",
-    },
-    likeContainer: {
         alignItems: "center",
-        marginRight: WIDTH * 0.03,
+        gap: WIDTH * 0.02,
+        marginLeft: 0,
+        paddingLeft: 0,
     },
-    viewContainer: {
+    rightActions: {
         alignItems: "center",
-        marginRight: WIDTH * 0.03,
     },
     actionButton: {
-        marginRight: WIDTH * 0.03,
-        marginTop: -HEIGHT * 0.01,
+        flexDirection: "row",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: '#eaeaea',
+        borderRadius: WIDTH * 0.1,
+        paddingVertical: HEIGHT * 0.008,
+        paddingHorizontal: WIDTH * 0.03,
+        backgroundColor: 'white',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 1,
+        elevation: 1,
+        marginHorizontal: WIDTH * 0.01,
     },
     actionIcon: {
-        width: WIDTH * 0.06,
-        height: WIDTH * 0.06,
+        width: WIDTH * 0.055,
+        height: WIDTH * 0.055,
+        marginRight: WIDTH * 0.02,
     },
-    actionCountText: {
+    countText: {
         fontSize: WIDTH * 0.03,
         color: BLACK,
-        fontFamily: POPPINSMEDIUM,
-        marginTop: 2,
-        marginRight: WIDTH * 0.02,
+        fontFamily: BOLDMONTSERRAT,
+    },
+    actionText: {
+        fontSize: WIDTH * 0.03,
+        color: BLACK,
+        fontFamily: BOLDMONTSERRAT,
+    },
+    viewCountContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: '#eaeaea',
+        borderRadius: WIDTH * 0.1,
+        paddingVertical: HEIGHT * 0.008,
+        paddingHorizontal: WIDTH * 0.03,
+        backgroundColor: 'white',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 1,
+        elevation: 1,
+    },
+    featuredImage: {
+        width: '100%',
+        height: HEIGHT * 0.3,
+        borderRadius: WIDTH * 0.025,
+        marginBottom: HEIGHT * 0.018,
     },
     card: {
         marginTop: HEIGHT * 0.01,
@@ -1391,15 +1284,14 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: HEIGHT * 0.002,
     },
+    commenterName: {
+        fontSize: WIDTH * 0.035,
+        fontFamily: POPPINSMEDIUM,
+    },
     commentTime: {
         fontSize: WIDTH * 0.032,
         color: GREY,
         fontFamily: POPPINSLIGHT,
-    },
-    commenterName: {
-        fontSize: WIDTH * 0.035,
-        fontFamily: POPPINSMEDIUM,
-        marginBottom: HEIGHT * 0.002,
     },
     commentText: {
         fontSize: WIDTH * 0.032,
@@ -1408,27 +1300,35 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
     },
     commentInputContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: HEIGHT * 0.008,
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: WIDTH * 0.03,
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderTopColor: '#EEEEEE',
+    },
+    commentUserImage: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        marginRight: WIDTH * 0.02,
     },
     commentInput: {
         flex: 1,
-        borderBottomWidth: 1,
-        borderColor: BLACK,
-        borderBottomLeftRadius: WIDTH * 0.02,
-        padding: WIDTH * 0.02,
-        fontSize: WIDTH * 0.032,
-        backgroundColor: WHITE,
+        height: HEIGHT * 0.05,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: WIDTH * 0.05,
+        paddingHorizontal: WIDTH * 0.03,
+        marginRight: WIDTH * 0.03,
         fontFamily: POPPINSLIGHT,
-        maxHeight: HEIGHT * 0.05,
+        backgroundColor: '#F7F7F7',
     },
     postButton: {
         backgroundColor: BLUE,
-        paddingHorizontal: WIDTH * 0.025,
-        paddingVertical: HEIGHT * 0.008,
-        borderRadius: WIDTH * 0.01,
-        marginLeft: WIDTH * 0.02,
+        paddingVertical: HEIGHT * 0.01,
+        paddingHorizontal: WIDTH * 0.03,
+        borderRadius: WIDTH * 0.02,
     },
     postButtonText: {
         color: WHITE,
@@ -1436,11 +1336,11 @@ const styles = StyleSheet.create({
         fontSize: WIDTH * 0.03,
     },
     noCommentsText: {
+        fontFamily: POPPINSMEDIUM,
         color: GREY,
-        textAlign: "center",
-        marginVertical: HEIGHT * 0.01,
-        fontFamily: POPPINSLIGHT,
-        fontSize: WIDTH * 0.032,
+        textAlign: 'center',
+        marginVertical: HEIGHT * 0.03,
+        fontSize: WIDTH * 0.04,
     },
     menuPopup: {
         position: "absolute",
@@ -1480,7 +1380,6 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        padding: HEIGHT * 0.02,
     },
     loadingText: {
         fontSize: WIDTH * 0.035,
@@ -1496,6 +1395,29 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         marginBottom: HEIGHT * 0.018,
         width: '100%',
+    },
+    imageContainer: {
+        height: HEIGHT * 0.28,
+        borderRadius: WIDTH * 0.025,
+        overflow: 'hidden',
+        marginBottom: HEIGHT * 0.018,
+        width: '100%',
+    },
+    placeholderImage: {
+        height: HEIGHT * 0.28,
+        borderRadius: WIDTH * 0.025,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.018,
+        width: '100%',
+    },
+    placeholderText: {
+        fontSize: 60,
+        fontWeight: 'bold',
+        color: GREY,
+        fontFamily: POPPINSMEDIUM,
+        opacity: 0.5,
     },
     videoWrapper: {
         width: '100%',
@@ -1540,9 +1462,9 @@ const styles = StyleSheet.create({
         bottom: 0,
         right: 0,
         backgroundColor: 'rgba(0,0,0,0.3)',
+        borderRadius: WIDTH * 0.025,
         justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: WIDTH * 0.025,
     },
     playButtonCircle: {
         width: WIDTH * 0.15,
@@ -1563,4 +1485,139 @@ const styles = StyleSheet.create({
         color: BLACK,
         marginLeft: 3,
     },
-});
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: WHITE,
+        borderTopLeftRadius: WIDTH * 0.05,
+        borderTopRightRadius: WIDTH * 0.05,
+        paddingBottom: Platform.OS === 'ios' ? HEIGHT * 0.05 : HEIGHT * 0.02,
+        maxHeight: HEIGHT * 0.7,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        paddingHorizontal: WIDTH * 0.05,
+        paddingVertical: HEIGHT * 0.02,
+    },
+    modalTitle: {
+        fontSize: WIDTH * 0.045,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+    },
+    closeButton: {
+        padding: WIDTH * 0.02,
+    },
+    downArrowIcon: {
+        width: WIDTH * 0.05,
+        height: WIDTH * 0.05,
+    },
+    commentsList: {
+        maxHeight: HEIGHT * 0.5,
+        paddingHorizontal: WIDTH * 0.05,
+    },
+    commentItem: {
+        marginVertical: HEIGHT * 0.01,
+        paddingBottom: HEIGHT * 0.01,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    commentHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    profileInitial: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        backgroundColor: GREY,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: WIDTH * 0.02,
+    },
+    commentDetails: {
+        flex: 1,
+    },
+    commentContent: {
+        fontFamily: POPPINSLIGHT,
+        color: BLACK,
+        fontSize: WIDTH * 0.035,
+        paddingLeft: WIDTH * 0.1,
+    },
+    commentCountHeader: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        padding: WIDTH * 0.02,
+    },
+    commentCountText: {
+        fontSize: WIDTH * 0.04,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+    },
+    loadingComments: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: HEIGHT * 0.02,
+    },
+    loadingCommentsText: {
+        fontSize: WIDTH * 0.035,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+        marginLeft: WIDTH * 0.02,
+    },
+    loginPrompt: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: HEIGHT * 0.02,
+    },
+    loginPromptText: {
+        fontSize: WIDTH * 0.035,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+        marginRight: WIDTH * 0.02,
+    },
+    loginButton: {
+        backgroundColor: BLUE,
+        paddingHorizontal: WIDTH * 0.025,
+        paddingVertical: HEIGHT * 0.008,
+        borderRadius: WIDTH * 0.01,
+    },
+    loginButtonText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.03,
+    },
+    loginToCommentContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: HEIGHT * 0.02,
+    },
+    loginToCommentButton: {
+        backgroundColor: BLUE,
+        paddingHorizontal: WIDTH * 0.025,
+        paddingVertical: HEIGHT * 0.008,
+        borderRadius: WIDTH * 0.01,
+    },
+    loginToCommentText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.03,
+    },
+    alertOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+}); 

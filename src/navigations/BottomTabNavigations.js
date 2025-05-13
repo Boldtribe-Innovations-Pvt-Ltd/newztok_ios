@@ -35,7 +35,7 @@ export const UserBottomTabNavigation = () => {
                     tabBarLabel: "Home",
                     tabBarIcon: ({ focused, color }) => (
                         <MaterialCommunityIcons
-                            name="home-variant-outline"
+                            name="home"
                             color={color}
                             size={26}
                         />

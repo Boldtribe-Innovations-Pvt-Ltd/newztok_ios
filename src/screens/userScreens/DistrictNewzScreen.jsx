@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from "react-native";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Modal, TextInput, Platform } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
-import { DISLIKE, LIKE, PRESSDISLIKE, PRESSLIKE, SHARE, THREEDOTS, ACCOUNT, VERIFIED, RAMNABAMI } from "../../constants/imagePath";
+import { DISLIKE, LIKE, PRESSDISLIKE, PRESSLIKE, SHARE, THREEDOTS, ACCOUNT, VERIFIED, RAMNABAMI, WHATSAPP, COMMENT, DOWNARROW } from "../../constants/imagePath";
 import { CustomBtn } from "../../components/commonComponents/CustomBtn";
 import YoutubeIframe from "react-native-youtube-iframe";
 import { MyLoader } from "../../components/commonComponents/MyLoader";
@@ -10,7 +10,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { BASE_URL } from "../../constants/url";
 import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
 import { WIDTH, HEIGHT } from "../../constants/config";
-import { BOLDMONTSERRAT, LORA, POPPINSLIGHT } from "../../constants/fontPath";
+import { BOLDMONTSERRAT, LORA, POPPINSLIGHT, POPPINSMEDIUM } from "../../constants/fontPath";
 import NativeAdComponent from "../../components/ads/NativeAdComponent";
 import HTML from 'react-native-render-html';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -239,6 +239,11 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
     const [selectedState, setSelectedState] = useState('bihar'); // Default state
     const [selectedDistrict, setSelectedDistrict] = useState(null); // Track selected district
     const [showLoginAlert, setShowLoginAlert] = useState(false); // State for login alert
+    const [commentModalVisible, setCommentModalVisible] = useState(false);
+    const [currentNewsItem, setCurrentNewsItem] = useState(null);
+    const [commentText, setCommentText] = useState('');
+    const [comments, setComments] = useState([]);
+    const [isFetchingComments, setIsFetchingComments] = useState(false);
 
     // Fetch news for the selected state only
     const fetchStateNews = async (state = selectedState) => {
@@ -374,7 +379,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
             // Sort news: Selected district first, then selected state, then by date
             const sortedNews = allNewsData.sort((a, b) => {
                 // First ensure we have valid dates for comparison
-                const dateA = new Date(a.createdAt || a.created_at || a.timestamp || a.updatedAt || a.updated_at || 0);
+                const dateA = new Date(a.createdAt || a.created_at || b.timestamp || a.updatedAt || a.updated_at || 0);
                 const dateB = new Date(b.createdAt || b.created_at || b.timestamp || b.updatedAt || b.updated_at || 0);
                 
                 // If there's no district and state filtering or dates are invalid, just sort by date (most recent first)
@@ -900,7 +905,8 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
         });
     };
 
-    const handleShare = async (item) => {
+    // Add WhatsApp share function
+    const handleWhatsAppShare = async (item) => {
         try {
             // Remove HTML tags function
             const removeHtmlTags = (text) => {
@@ -995,6 +1001,9 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
             console.log(`Rendering card for item ${item.id} with video path:`, item.videoPath);
         }
         
+        // Get the date string for display
+        const dateStr = formatDate(item.createdAt || item.updatedAt);
+        
         return (
             <View style={styles.cardWrapper}>
                 <View style={styles.cardHeader}>
@@ -1003,24 +1012,22 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                         <Text style={styles.headerText}>{item.posterName}</Text>
                         <Image source={item.verifiedIcon} style={styles.verifiedIcon} />
                     </View>
-                    <View style={styles.headerRight}>
-                        <TouchableOpacity
-                            style={[styles.followButton, followStatus[item.id] && styles.followedButton]}
-                            onPress={() => handleFollow(item.id)}
-                        >
-                            <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
-                                {followStatus[item.id] ? '✓' : '+'}
-                            </Text>
-                            <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
-                                {followStatus[item.id] ? 'Followed' : 'Follow'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                        style={[styles.followButton, followStatus[item.id] && styles.followedButton]}
+                        onPress={() => handleFollow(item.id)}
+                    >
+                        <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
+                            {followStatus[item.id] ? '✓' : '+'}
+                        </Text>
+                        <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
+                            {followStatus[item.id] ? 'Followed' : 'Follow'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.card}>
                     <View style={styles.videoContainer}>
-                        <TouchableOpacity
+                        <TouchableOpacity 
                             style={styles.videoTouchable}
                             activeOpacity={0.9}
                             onPress={() => onNavigateNews(item)}
@@ -1072,9 +1079,9 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                         <Text style={styles.text} numberOfLines={2} ellipsizeMode="tail">{item.title}</Text>
                         <Text style={styles.time}>{item.time}</Text>
                     </View>
-
+                    
                     <View style={styles.dateContainer}>
-                        <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
+                        <Text style={styles.dateText}>{dateStr}</Text>
                     </View>
 
                     <View style={styles.locationContainer}>
@@ -1088,24 +1095,39 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
 
                     <View style={styles.actionContainer}>
                         <View style={styles.iconContainer}>
-                            <View style={styles.likeDislikeContainer}>
-                                <TouchableOpacity onPress={() => handleLike(item.id)}>
+                            <View style={styles.actionButtonContainer}>
+                                <TouchableOpacity onPress={() => handleLike(item.id)} style={styles.actionButton}>
                                     <Image
                                         source={reaction[item.id] === "like" ? PRESSLIKE : LIKE}
-                                        style={styles.icon}
+                                        style={styles.actionIcon}
                                     />
+                                    <Text style={styles.actionCountText}>
+                                        {likeCounts[item.id] > 999 ? (likeCounts[item.id] / 1000).toFixed(1) + 'k' : likeCounts[item.id] || 0}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
-                            <TouchableOpacity onPress={() => handleShare(item)}>
-                                <Image source={SHARE} style={styles.icon} />
-                            </TouchableOpacity>
+
+                            <View style={styles.actionButtonContainer}>
+                                <TouchableOpacity onPress={() => handleWhatsAppShare(item)} style={styles.actionButton}>
+                                    <Image source={WHATSAPP} style={styles.actionIcon} />
+                                    <Text style={styles.actionCountText}>Share</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <View style={styles.actionButtonContainer}>
+                                <TouchableOpacity onPress={() => handleCommentPress(item)} style={styles.actionButton}>
+                                    <Image source={COMMENT} style={styles.actionIcon} />
+                                    <Text style={styles.actionCountText}>Comments</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
 
-                        <CustomBtn 
-                            text="Read More" 
-                            width={WIDTH * 0.25} 
-                            onPress={() => onNavigateNews(item)} 
-                        />
+                        <TouchableOpacity 
+                            style={styles.readMoreButton}
+                            onPress={() => onNavigateNews(item)}
+                        >
+                            <Text style={styles.readMoreText}>Read more</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </View>
@@ -1179,6 +1201,299 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
         storeDistrict();
     }, [selectedDistrict]);
 
+    // Function to handle opening the comment modal
+    const handleCommentPress = async (item) => {
+        setCurrentNewsItem(item);
+        setCommentModalVisible(true);
+        await fetchComments(item.id);
+    };
+    
+    // Function to fetch comments for a news item
+    const fetchComments = async (newsId) => {
+        if (!newsId) return;
+        
+        setIsFetchingComments(true);
+        try {
+            // Get the news ID
+            const targetNewsId = newsId;
+            console.log(`Fetching comments for news ID: ${targetNewsId}`);
+            
+            // Try to get token for authenticated request
+            let userToken = await getStoredToken();
+            
+            // Set auth flag based on token availability
+            const isAuthenticated = !!userToken;
+            if (isAuthenticated) {
+                console.log("Fetching comments with authentication");
+                await AsyncStorage.setItem('loginResponse', userToken);
+            } else {
+                console.log("Fetching comments without authentication");
+            }
+            
+            // Make API request to get comments
+            const commentsEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/comments`;
+            console.log(`Comments endpoint: ${commentsEndpoint}`);
+            
+            const response = await GETNETWORK(commentsEndpoint, isAuthenticated);
+            console.log("Comments API response:", response);
+            
+            // Extract comments from potentially nested response structure
+            let commentsData = [];
+            
+            // Handle different response formats
+            if (response) {
+                if (Array.isArray(response.data)) {
+                    commentsData = response.data;
+                    console.log(`Found ${commentsData.length} comments in direct array`);
+                } else if (response.data?.data && Array.isArray(response.data.data)) {
+                    commentsData = response.data.data;
+                    console.log(`Found ${commentsData.length} comments in nested data.data array`);
+                } else if (response.data?.comments && Array.isArray(response.data.comments)) {
+                    commentsData = response.data.comments;
+                    console.log(`Found ${commentsData.length} comments in data.comments array`);
+                } else if (response.data) {
+                    console.log("Response format not recognized, attempting to extract comments", response.data);
+                    // Try to extract any array that might contain comments
+                    for (const key in response.data) {
+                        if (Array.isArray(response.data[key])) {
+                            commentsData = response.data[key];
+                            console.log(`Found possible comments array in key: ${key} with ${commentsData.length} items`);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (commentsData && commentsData.length > 0) {
+                console.log(`Processing ${commentsData.length} comments`);
+                console.log("Sample comment data:", commentsData[0]);
+                
+                // Transform API response to our comment format
+                const formattedComments = commentsData.map(item => ({
+                    id: item.id || Math.random().toString(),
+                    name: item.user?.username || item.username || item.user_name || "Anonymous",
+                    comment: item.text || item.comment || item.content || item.message || "",
+                    timestamp: new Date(item.createdAt || item.created_at || item.timestamp || Date.now())
+                }));
+                
+                // Sort comments by timestamp (newest first)
+                formattedComments.sort((a, b) => b.timestamp - a.timestamp);
+                
+                setComments(formattedComments);
+            } else {
+                console.log("No comments found in response");
+                setComments([]);
+            }
+        } catch (error) {
+            console.error("Error fetching comments:", error);
+            setComments([]);
+        } finally {
+            setIsFetchingComments(false);
+        }
+    };
+    
+    // Function to post a comment
+    const postComment = async () => {
+        if (!commentText.trim() || !currentNewsItem?.id) return;
+        
+        if (!isLoggedIn) {
+            setCommentModalVisible(false);
+            setShowLoginAlert(true);
+            return;
+        }
+        
+        try {
+            // Get the news ID
+            const targetNewsId = currentNewsItem.id;
+            console.log(`Posting comment for news ID: ${targetNewsId}`);
+            
+            // Get token for authenticated request
+            let userToken = await getStoredToken();
+            
+            // Validate token
+            if (!userToken) {
+                throw new Error("No authentication token found");
+            }
+            
+            // Store token in AsyncStorage for POSTNETWORK
+            await AsyncStorage.setItem('loginResponse', userToken);
+            console.log("Using token for comment POST");
+            
+            // Create comment payload - try text field first (most common API format)
+            const commentPayload = { text: commentText.trim() };
+            
+            // Make API request to post comment
+            const commentEndpoint = `${BASE_URL}api/interaction/news/${targetNewsId}/comment`;
+            console.log(`Comment POST endpoint: ${commentEndpoint}`);
+            console.log("Comment payload:", commentPayload);
+            
+            const response = await POSTNETWORK(commentEndpoint, commentPayload, true);
+            console.log("Comment POST response:", response);
+            
+            if (response && (response.success || response.data?.success)) {
+                // Comment posted successfully
+                console.log("Comment posted successfully");
+                
+                // Add to local state first for immediate feedback
+                const newCommentObj = {
+                    id: response.data?.id || response.data?.data?.id || Math.random().toString(),
+                    name: "You",
+                    comment: commentText.trim(),
+                    timestamp: new Date()
+                };
+                
+                // Add to the beginning of the list (newest first)
+                setComments(prevComments => [newCommentObj, ...prevComments]);
+                
+                // Clear the input
+                setCommentText("");
+                
+                // Fetch all comments to get the updated list
+                setTimeout(() => {
+                    fetchComments(currentNewsItem.id);
+                }, 500);
+            } else {
+                // If default payload format failed, try alternative formats
+                console.log("First attempt failed, trying alternative payload formats");
+                
+                const alternativePayloads = [
+                    { comment: commentText.trim() },
+                    { content: commentText.trim() },
+                    { message: commentText.trim() }
+                ];
+                
+                let success = false;
+                
+                for (const payload of alternativePayloads) {
+                    console.log("Trying payload format:", payload);
+                    const retryResponse = await POSTNETWORK(commentEndpoint, payload, true);
+                    
+                    if (retryResponse && (retryResponse.success || retryResponse.data?.success)) {
+                        // Comment posted successfully with alternative payload
+                        console.log("Comment posted successfully with alternative payload");
+                        
+                        // Add to local state
+                        const newCommentObj = {
+                            id: retryResponse.data?.id || retryResponse.data?.data?.id || Math.random().toString(),
+                            name: "You",
+                            comment: commentText.trim(),
+                            timestamp: new Date()
+                        };
+                        
+                        setComments(prevComments => [newCommentObj, ...prevComments]);
+                        setCommentText("");
+                        
+                        setTimeout(() => {
+                            fetchComments(currentNewsItem.id);
+                        }, 500);
+                        
+                        success = true;
+                        break;
+                    }
+                }
+                
+                if (!success) {
+                    throw new Error(response?.message || response?.data?.message || "Failed to post comment");
+                }
+            }
+        } catch (error) {
+            console.error("Error posting comment:", error);
+            
+            // Handle unauthorized error (401)
+            if (error.message?.includes("unauthorized") || error.message?.includes("401")) {
+                setCommentModalVisible(false);
+                setShowLoginAlert(true);
+            } else {
+                // General error
+                Alert.alert(
+                    "Error",
+                    error.message || "Failed to post comment",
+                    [{ text: "OK" }]
+                );
+            }
+        }
+    };
+    
+    // Comment modal component
+    const renderCommentModal = () => {
+        return (
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={commentModalVisible}
+                onRequestClose={() => setCommentModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Comments</Text>
+                            <TouchableOpacity 
+                                style={styles.closeButton} 
+                                onPress={() => setCommentModalVisible(false)}
+                            >
+                                <Image source={DOWNARROW} style={styles.downArrowIcon} />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.commentsList}>
+                            {isFetchingComments ? (
+                                <View style={styles.loadingComments}>
+                                    <ActivityIndicator size="small" color={BLUE} />
+                                    <Text style={styles.loadingCommentsText}>Loading comments...</Text>
+                                </View>
+                            ) : comments.length === 0 ? (
+                                <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+                            ) : (
+                                <FlatList
+                                    data={comments}
+                                    keyExtractor={(item) => item.id.toString()}
+                                    renderItem={({ item }) => (
+                                        <View style={styles.commentItem}>
+                                            <View style={styles.commentHeader}>
+                                                <View style={styles.profileInitial}>
+                                                    <Text style={styles.initialText}>
+                                                        {item.name.charAt(0).toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.commentDetails}>
+                                                    <Text style={styles.commenterName}>{item.name}</Text>
+                                                    <Text style={styles.commentTime}>
+                                                        {item.timestamp.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                                    </Text>
+                                                </View>
+                                            </View>
+                                            <Text style={styles.commentContent}>{item.comment}</Text>
+                                        </View>
+                                    )}
+                                />
+                            )}
+                        </View>
+                        
+                        <View style={styles.commentInputContainer}>
+                            <TextInput
+                                style={styles.commentInput}
+                                placeholder="Add a comment..."
+                                value={commentText}
+                                onChangeText={setCommentText}
+                                placeholderTextColor={GREY}
+                            />
+                            <TouchableOpacity 
+                                style={[
+                                    styles.postButton, 
+                                    !commentText.trim() && styles.disabledButton
+                                ]}
+                                onPress={postComment}
+                                disabled={!commentText.trim()}
+                            >
+                                <Text style={styles.postButtonText}>Post</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
+
     return (
         <>
             <MyStatusBar backgroundColor={WHITE} />
@@ -1211,7 +1526,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
             <MyAlert
                 visible={showLoginAlert}
                 title="Login Required"
-                message="Please log in to like this news"
+                message="Please log in to like or comment on this news"
                 textLeft="Cancel"
                 textRight="Login"
                 backgroundColor={BLUE}
@@ -1223,6 +1538,8 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                     });
                 }}
             />
+            
+            {renderCommentModal()}
         </>
     );
 };
@@ -1294,7 +1611,7 @@ const styles = StyleSheet.create({
         borderRadius: WIDTH * 0.01,
         height: HEIGHT * 0.03,
         width: WIDTH * 0.18,
-        gap: WIDTH * 0.01,
+        gap: WIDTH * 0.01
     },
     followButtonText: {
         fontSize: WIDTH * 0.025,
@@ -1361,7 +1678,7 @@ const styles = StyleSheet.create({
     },
     time: {
         fontSize: WIDTH * 0.03,
-        fontFamily: POPPINSLIGHT,
+        fontFamily: LORA,
         color: BLACK,
         flexShrink: 0,
     },
@@ -1378,30 +1695,51 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginTop: HEIGHT * 0.005,
+        marginTop: HEIGHT * 0.01,
+        marginBottom: HEIGHT * 0.005,
+        width: '100%',
     },
     iconContainer: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
+        justifyContent: "flex-start",
+        flexWrap: "wrap",
     },
-    likeDislikeContainer: {
-        flexDirection: "column",
+    actionButtonContainer: {
+        marginRight: WIDTH * 0.02,
+    },
+    actionButton: {
+        flexDirection: "row",
         alignItems: "center",
-        padding: WIDTH * 0.008,
-        borderRadius: WIDTH * 0.025,
-        marginRight: WIDTH * 0.015,
+        backgroundColor: 'rgba(240, 240, 240, 0.4)',
+        paddingVertical: HEIGHT * 0.006,
+        paddingHorizontal: WIDTH * 0.02,
+        borderRadius: WIDTH * 0.04,
+        borderWidth: 0.5,
+        borderColor: 'rgba(0, 0, 0, 0.1)',
     },
-    separator: {
-        width: 1,
-        height: "100%",
-        backgroundColor: GREY,
-        marginHorizontal: WIDTH * 0.01,
+    actionIcon: {
+        width: WIDTH * 0.045,
+        height: WIDTH * 0.045,
+        marginRight: WIDTH * 0.01,
     },
-    icon: {
-        width: WIDTH * 0.05,
-        height: WIDTH * 0.05,
-        marginHorizontal: WIDTH * 0.008,
+    actionCountText: {
+        fontSize: WIDTH * 0.025,
+        color: BLACK,
+        fontFamily: POPPINSLIGHT,
+    },
+    readMoreButton: {
+        backgroundColor: BLUE,
+        paddingVertical: HEIGHT * 0.008,
+        paddingHorizontal: WIDTH * 0.03,
+        borderRadius: WIDTH * 0.02,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    readMoreText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.03,
     },
     accountImage: {
         width: WIDTH * 0.06,
@@ -1417,8 +1755,8 @@ const styles = StyleSheet.create({
     },
     noNewsText: {
         fontSize: WIDTH * 0.04,
-        fontFamily: BOLDMONTSERRAT,
         color: GREY,
+        fontFamily: BOLDMONTSERRAT,
         textAlign: 'center',
     },
     noNewsSubText: {
@@ -1453,18 +1791,6 @@ const styles = StyleSheet.create({
         fontFamily: BOLDMONTSERRAT,
         color: '#a1a1a1',
         opacity: 0.8
-    },
-    rightContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "flex-end",
-    },
-    likeCountText: {
-        fontSize: WIDTH * 0.025,
-        fontFamily: LORA,
-        color: BLACK,
-        marginTop: 2,
-        textAlign: 'center',
     },
     videoWrapper: {
         width: '100%',
@@ -1544,5 +1870,133 @@ const styles = StyleSheet.create({
         color: BLUE,
         fontWeight: 'bold',
         fontSize: WIDTH * 0.032,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: WHITE,
+        borderTopLeftRadius: WIDTH * 0.05,
+        borderTopRightRadius: WIDTH * 0.05,
+        paddingBottom: Platform.OS === 'ios' ? HEIGHT * 0.05 : HEIGHT * 0.02,
+        maxHeight: HEIGHT * 0.7,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+        paddingHorizontal: WIDTH * 0.05,
+        paddingVertical: HEIGHT * 0.02,
+    },
+    modalTitle: {
+        fontSize: WIDTH * 0.045,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+    },
+    closeButton: {
+        padding: WIDTH * 0.02,
+    },
+    downArrowIcon: {
+        width: WIDTH * 0.05,
+        height: WIDTH * 0.05,
+    },
+    commentsList: {
+        maxHeight: HEIGHT * 0.5,
+        paddingHorizontal: WIDTH * 0.05,
+    },
+    commentItem: {
+        marginVertical: HEIGHT * 0.01,
+        paddingBottom: HEIGHT * 0.01,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    commentHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    profileInitial: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        backgroundColor: BLUE,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: WIDTH * 0.02,
+    },
+    initialText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.04,
+    },
+    commentDetails: {
+        flex: 1,
+    },
+    commenterName: {
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+        fontSize: WIDTH * 0.035,
+    },
+    commentTime: {
+        fontFamily: POPPINSLIGHT,
+        color: GREY,
+        fontSize: WIDTH * 0.03,
+    },
+    commentContent: {
+        fontFamily: POPPINSLIGHT,
+        color: BLACK,
+        fontSize: WIDTH * 0.035,
+        paddingLeft: WIDTH * 0.1,
+    },
+    loadingComments: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: HEIGHT * 0.03,
+    },
+    loadingCommentsText: {
+        fontFamily: POPPINSLIGHT,
+        color: GREY,
+        marginTop: HEIGHT * 0.01,
+    },
+    noCommentsText: {
+        fontFamily: POPPINSLIGHT,
+        color: GREY,
+        textAlign: 'center',
+        marginVertical: HEIGHT * 0.03,
+    },
+    commentInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
+        padding: WIDTH * 0.05,
+    },
+    commentInput: {
+        flex: 1,
+        height: HEIGHT * 0.05,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderRadius: WIDTH * 0.02,
+        paddingHorizontal: WIDTH * 0.03,
+        marginRight: WIDTH * 0.03,
+        fontFamily: POPPINSLIGHT,
+    },
+    postButton: {
+        backgroundColor: BLUE,
+        paddingVertical: HEIGHT * 0.01,
+        paddingHorizontal: WIDTH * 0.03,
+        borderRadius: WIDTH * 0.02,
+    },
+    postButtonText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.035,
+    },
+    disabledButton: {
+        backgroundColor: GREY,
     },
 });

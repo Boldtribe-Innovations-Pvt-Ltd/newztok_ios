@@ -35,7 +35,7 @@ export default LoginSignupScreen = ({ navigation }) => {
 
     return (
         <>
-            <MyStatusBar backgroundColor={WHITE} />
+            <MyStatusBar backgroundColor={WHITE} barStyle={"dark-content"} />
             <View style={styles.container}>
                 {/* Logo */}
                 <View style={styles.logoContainer}>
