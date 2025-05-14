@@ -209,6 +209,10 @@ export default ProfileScreen = ({ route, navigation }) => {
         });
     };
 
+    const handleSettingsPress = () => {
+        navigation.navigate("Setting");
+    }
+
     const renderGuestProfile = () => {
         return (
             <View style={styles.guestContainer}>
@@ -284,7 +288,7 @@ export default ProfileScreen = ({ route, navigation }) => {
     return (
         <>
             <MyStatusBar backgroundColor={WHITE} />
-            <MyHeader showLocationDropdown={false} showBackButton={false} />
+            <MyHeader showLocationDropdown={false} showBackButton={false} showSettings={true} onPressSettings={handleSettingsPress} />
             
             {userData ? renderUserProfile() : renderGuestProfile()}
 

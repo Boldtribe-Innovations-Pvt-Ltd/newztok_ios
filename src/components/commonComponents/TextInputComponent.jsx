@@ -15,9 +15,15 @@ export const TextInputComponent = ({
     maxLength = 100,
     onTouch = "",
     width = "80%",
-    autoCapitalize = ""
+    autoCapitalize = "none"
 }) => {
     const [tap, setTap] = useState(false);
+    
+    // Ensure autoCapitalize has a valid value
+    const validAutoCapitalize = ["none", "sentences", "words", "characters"].includes(autoCapitalize) 
+        ? autoCapitalize 
+        : "none";
+
     return (
         <Pressable
             onPress={onTouch != "" ? onTouch : () => { }}
@@ -93,7 +99,7 @@ export const TextInputComponent = ({
                     placeholderTextColor={'gray'}
                     onFocus={() => { setTap(true) }}
                     onEndEditing={() => { setTap(false) }}
-                    autoCapitalize={autoCapitalize}
+                    autoCapitalize={validAutoCapitalize}
                 />
             </View>
         </Pressable>
