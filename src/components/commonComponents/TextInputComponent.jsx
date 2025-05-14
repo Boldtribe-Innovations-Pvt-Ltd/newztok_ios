@@ -24,6 +24,22 @@ export const TextInputComponent = ({
         ? autoCapitalize 
         : "none";
 
+    // Ensure keyboardType has a valid value
+    const validKeyboardType = [
+        'default',
+        'email-address',
+        'numeric',
+        'phone-pad',
+        'number-pad',
+        'decimal-pad',
+        'ascii-capable',
+        'numbers-and-punctuation',
+        'url',
+        'name-phone-pad',
+        'twitter',
+        'web-search'
+    ].includes(keyboardType) ? keyboardType : 'default';
+
     return (
         <Pressable
             onPress={onTouch != "" ? onTouch : () => { }}
@@ -94,7 +110,7 @@ export const TextInputComponent = ({
                     value={inputdata}
                     editable={editable}
                     maxLength={maxLength}
-                    keyboardType={keyboardType}
+                    keyboardType={validKeyboardType}
                     placeholder={tap ? "" : placeholder}
                     placeholderTextColor={'gray'}
                     onFocus={() => { setTap(true) }}
