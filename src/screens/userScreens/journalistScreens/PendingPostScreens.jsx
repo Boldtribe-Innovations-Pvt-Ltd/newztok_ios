@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { StyleSheet, View, Text, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, ScrollView, TextInput, Platform, KeyboardAvoidingView, Linking, Alert } from "react-native";
+import { StyleSheet, View, Text, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Modal, ScrollView, TextInput, Platform, KeyboardAvoidingView, Linking, Alert, SafeAreaView, StatusBar } from "react-native";
 import { WHITE, BLUE, BLACK, GREY, RED } from "../../../constants/color";
 import { MyHeader } from "../../../components/commonComponents/MyHeader";
 import { LOGO, EDIT, CROSS } from "../../../constants/imagePath";
@@ -1521,334 +1521,359 @@ export default PendingPostScreens = ({ navigation }) => {
             transparent={false}
             visible={modalVisible}
             onRequestClose={() => setModalVisible(false)}
+            statusBarTranslucent={true}
         >
-            <KeyboardAvoidingView 
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={styles.modalContainer}
-            >
-                <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Edit Post</Text>
-                    <TouchableOpacity 
-                        style={styles.closeButton}
-                        onPress={() => setModalVisible(false)}
-                    >
-                        <Image source={CROSS} style={styles.closeIcon} />
-                    </TouchableOpacity>
-                </View>
-                
-                {editLoading ? (
-                    <View style={styles.loaderContainer}>
-                        <ActivityIndicator size="large" color={BLUE} />
-                        <Text style={styles.loadingText}>Loading post details...</Text>
+            <StatusBar
+                barStyle="light-content"
+                backgroundColor={BLUE}
+            />
+            <SafeAreaView style={styles.modalSafeArea}>
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
+                    style={styles.modalContainer}
+                >
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>Edit Post</Text>
+                        <TouchableOpacity 
+                            style={styles.closeButton}
+                            onPress={() => {
+                                setModalVisible(false);
+                                // Reset all form states
+                                setHeadline("");
+                                setContent("");
+                                setCategory("---------");
+                                setSelectedCategoryId(null);
+                                setState("");
+                                setSelectedStateId("bihar");
+                                setDistrict("---------");
+                                setSelectedDistrictId(null);
+                                setYoutubeUrl("");
+                                setSelectedImage(null);
+                                setSelectedVideoFile(null);
+                                setEditablePost(null);
+                                setShowCategoryDropdown(false);
+                                setShowStateDropdown(false);
+                                setShowDistrictDropdown(false);
+                            }}
+                        >
+                            <Image source={CROSS} style={styles.closeIcon} />
+                        </TouchableOpacity>
                     </View>
-                ) : (
-                    <ScrollView 
-                        contentContainerStyle={styles.modalContent}
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {/* Post Type Badge */}
-                        {editablePost && (
-                            <View style={styles.postTypeBadgeContainer}>
-                                <Text style={[
-                                    styles.contentTypeText,
-                                    editablePost.post_type === "video" ? styles.videoContentBadge : styles.standardContentBadge
-                                ]}>
-                                    {editablePost.post_type === "video" ? "Video Content" : "Standard Content"}
-                                </Text>
-                            </View>
-                        )}
-                        
-                        {/* Headline/Title */}
-                        <Text style={styles.sectionTitle}>Post Title/Headline</Text>
-                        <TextInput
-                            style={styles.titleInput}
-                            value={headline}
-                            onChangeText={setHeadline}
-                            placeholder="Write title here..."
-                            placeholderTextColor={GREY}
-                        />
-                        
-                        {/* Content Type Specific Fields */}
-                        {editablePost && editablePost.post_type === "video" ? (
-                            <View style={styles.formGroup}>
-                                {/* Check if we have a video file or YouTube URL */}
-                                {editablePost.video_file || editablePost.videoPath ? (
-                                    <>
-                                        <Text style={styles.sectionTitle}>Video File</Text>
-                                        <View style={styles.compactVideoContainer}>
-                                            <Text style={styles.currentVideoText} numberOfLines={1} ellipsizeMode="middle">
-                                                Current: {typeof editablePost.video_file === 'string' 
-                                                    ? editablePost.video_file.split('/').pop() 
-                                                    : (editablePost.videoPath 
-                                                        ? editablePost.videoPath.split('/').pop() 
-                                                        : 'Video File')}
-                                            </Text>
-                                            <TouchableOpacity 
-                                                style={styles.changeVideoButton}
-                                                onPress={handleChooseVideo}
-                                            >
-                                                <Text style={styles.changeVideoButtonText}>Change</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                        {selectedVideoFile && (
-                                            <Text style={styles.newVideoText} numberOfLines={1} ellipsizeMode="middle">
-                                                New: {selectedVideoFile.fileName || 'video.mp4'}
-                                            </Text>
-                                        )}
-                                    </>
-                                ) : (
-                                    <>
-                                        <Text style={styles.sectionTitle}>YouTube URL</Text>
-                                        <TextInput
-                                            style={styles.formInput}
-                                            value={youtubeUrl}
-                                            onChangeText={setYoutubeUrl}
-                                            placeholder="Enter YouTube URL"
-                                            placeholderTextColor={GREY}
-                                        />
-                                        {youtubeUrl && (
-                                            <View style={styles.videoPreviewContainer}>
-                                                <Text style={styles.previewText}>Video Preview:</Text>
-                                                <Image 
-                                                    source={{ 
-                                                        uri: `https://img.youtube.com/vi/${extractYoutubeId(youtubeUrl) || 'invalid'}/0.jpg` 
-                                                    }}
-                                                    style={styles.videoThumbnail}
-                                                    resizeMode="cover"
-                                                />
-                                            </View>
-                                        )}
-                                    </>
-                                )}
-                            </View>
-                        ) : (
-                            <View style={styles.formGroup}>
-                                <Text style={styles.sectionTitle}>Featured Image</Text>
-                                <View style={styles.fileSelectionContainer}>
-                                    <TouchableOpacity 
-                                        style={styles.chooseFileButton}
-                                        onPress={handleChooseImage}
-                                    >
-                                        <Text style={styles.chooseFileText}>Choose File</Text>
-                                    </TouchableOpacity>
-                                    <Text style={styles.fileSelectedText}>
-                                        {selectedImage ? selectedImage.name || 'image.jpg' : 'No file selected'}
+                    
+                    {editLoading ? (
+                        <View style={styles.loaderContainer}>
+                            <ActivityIndicator size="large" color={BLUE} />
+                            <Text style={styles.loadingText}>Loading post details...</Text>
+                        </View>
+                    ) : (
+                        <ScrollView 
+                            contentContainerStyle={styles.modalContent}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            {/* Post Type Badge */}
+                            {editablePost && (
+                                <View style={styles.postTypeBadgeContainer}>
+                                    <Text style={[
+                                        styles.contentTypeText,
+                                        editablePost.post_type === "video" ? styles.videoContentBadge : styles.standardContentBadge
+                                    ]}>
+                                        {editablePost.post_type === "video" ? "Video Content" : "Standard Content"}
                                     </Text>
                                 </View>
-                                
-                                {selectedImage && (
-                                    <View style={styles.selectedImageContainer}>
-                                        <Image 
-                                            source={{ uri: selectedImage.uri }}
-                                            style={styles.selectedImage}
-                                            resizeMode="cover"
-                                        />
-                                    </View>
-                                )}
-                            </View>
-                        )}
-                        
-                        {/* Content Section */}
-                        <View style={styles.contentContainer}>
-                            <Text style={styles.contentTitle}>Content</Text>
+                            )}
                             
-                            {/* Formatting Toolbar */}
-                            <View style={styles.formattingToolbar}>
-                                <TouchableOpacity onPress={() => handleFormatPress('bold')}>
-                                    <Text style={styles.formatIcon}>B</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleFormatPress('italic')}>
-                                    <Text style={styles.formatIcon}>I</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleFormatPress('bulletList')}>
-                                    <Text style={styles.formatIcon}>≡</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleFormatPress('numberedList')}>
-                                    <Text style={styles.formatIcon}>⋮</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleFormatPress('indent')}>
-                                    <Text style={styles.formatIcon}>⫶</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={() => handleFormatPress('code')}>
-                                    <Text style={styles.formatIcon}>&lt;&gt;</Text>
-                                </TouchableOpacity>
-                            </View>
-                            
-                            {/* Content Editor */}
+                            {/* Headline/Title */}
+                            <Text style={styles.sectionTitle}>Post Title/Headline</Text>
                             <TextInput
-                                ref={contentInputRef}
-                                style={styles.contentEditor}
-                                placeholder="Write your content here..."
-                                multiline={true}
-                                numberOfLines={10}
-                                value={content}
-                                onChangeText={setContent}
-                                onSelectionChange={handleSelectionChange}
-                                textAlignVertical="top"
+                                style={styles.titleInput}
+                                value={headline}
+                                onChangeText={setHeadline}
+                                placeholder="Write title here..."
+                                placeholderTextColor={GREY}
                             />
-                        </View>
-                        
-                        {/* Category Section */}
-                        <View style={styles.categorySection}>
-                            <Text style={styles.organizeSectionTitle}>Organize</Text>
                             
-                            {/* Category Dropdown */}
-                            <Text style={styles.categoryLabel}>CATEGORY</Text>
-                            <TouchableOpacity 
-                                style={styles.categoryDropdown}
-                                onPress={toggleCategoryDropdown}
-                            >
-                                <Text>{category}</Text>
-                                <Text>▼</Text>
-                            </TouchableOpacity>
-                            
-                            {/* Category Dropdown Modal */}
-                            <Modal
-                                statusBarTranslucent={true}
-                                visible={showCategoryDropdown}
-                                transparent={true}
-                                animationType="fade"
-                                onRequestClose={() => setShowCategoryDropdown(false)}
-                            >
-                                <TouchableOpacity 
-                                    style={styles.modalOverlay} 
-                                    activeOpacity={1} 
-                                    onPress={() => setShowCategoryDropdown(false)}
-                                >
-                                    <View style={styles.dropdownContainer}>
-                                        <View style={styles.dropdownHeader}>
-                                            <TouchableOpacity onPress={() => setShowCategoryDropdown(false)}>
-                                                <Text style={styles.checkmark}>✓</Text>
-                                            </TouchableOpacity>
-                                            <Text style={styles.dropdownHeaderText}>Select Category</Text>
-                                        </View>
-                                        <FlatList
-                                            data={categories}
-                                            keyExtractor={(item) => item.id}
-                                            renderItem={({ item }) => (
+                            {/* Content Type Specific Fields */}
+                            {editablePost && editablePost.post_type === "video" ? (
+                                <View style={styles.formGroup}>
+                                    {/* Check if we have a video file or YouTube URL */}
+                                    {editablePost.video_file || editablePost.videoPath ? (
+                                        <>
+                                            <Text style={styles.sectionTitle}>Video File</Text>
+                                            <View style={styles.compactVideoContainer}>
+                                                <Text style={styles.currentVideoText} numberOfLines={1} ellipsizeMode="middle">
+                                                    Current: {typeof editablePost.video_file === 'string' 
+                                                        ? editablePost.video_file.split('/').pop() 
+                                                        : (editablePost.videoPath 
+                                                            ? editablePost.videoPath.split('/').pop() 
+                                                            : 'Video File')}
+                                                </Text>
                                                 <TouchableOpacity 
-                                                    style={styles.dropdownItem}
-                                                    onPress={() => selectCategory(item)}
+                                                    style={styles.changeVideoButton}
+                                                    onPress={handleChooseVideo}
                                                 >
-                                                    <Text style={styles.dropdownItemText}>{item.name}</Text>
+                                                    <Text style={styles.changeVideoButtonText}>Change</Text>
                                                 </TouchableOpacity>
+                                            </View>
+                                            {selectedVideoFile && (
+                                                <Text style={styles.newVideoText} numberOfLines={1} ellipsizeMode="middle">
+                                                    New: {selectedVideoFile.fileName || 'video.mp4'}
+                                                </Text>
                                             )}
-                                        />
-                                    </View>
-                                </TouchableOpacity>
-                            </Modal>
-                            
-                            {/* State Dropdown */}
-                            <Text style={[styles.categoryLabel, {marginTop: HEIGHT * 0.015}]}>STATE</Text>
-                            <TouchableOpacity 
-                                style={styles.categoryDropdown}
-                                onPress={toggleStateDropdown}
-                            >
-                                <Text>{state}</Text>
-                                <Text>▼</Text>
-                            </TouchableOpacity>
-                            
-                            {/* State Dropdown Modal */}
-                            <Modal
-                                statusBarTranslucent={true}
-                                visible={showStateDropdown}
-                                transparent={true}
-                                animationType="fade"
-                                onRequestClose={() => setShowStateDropdown(false)}
-                            >
-                                <TouchableOpacity 
-                                    style={styles.modalOverlay} 
-                                    activeOpacity={1} 
-                                    onPress={() => setShowStateDropdown(false)}
-                                >
-                                    <View style={styles.dropdownContainer}>
-                                        <View style={styles.dropdownHeader}>
-                                            <TouchableOpacity onPress={() => setShowStateDropdown(false)}>
-                                                <Text style={styles.checkmark}>✓</Text>
-                                            </TouchableOpacity>
-                                            <Text style={styles.dropdownHeaderText}>Select State</Text>
-                                        </View>
-                                        <FlatList
-                                            data={states}
-                                            keyExtractor={(item) => item.id}
-                                            renderItem={({ item }) => (
-                                                <TouchableOpacity 
-                                                    style={styles.dropdownItem}
-                                                    onPress={() => selectState(item)}
-                                                >
-                                                    <Text style={styles.dropdownItemText}>{item.hindi} | {item.english}</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                        />
-                                    </View>
-                                </TouchableOpacity>
-                            </Modal>
-                            
-                            {/* District Dropdown */}
-                            <Text style={[styles.categoryLabel, {marginTop: HEIGHT * 0.015}]}>DISTRICT</Text>
-                            <TouchableOpacity 
-                                style={styles.categoryDropdown}
-                                onPress={toggleDistrictDropdown}
-                            >
-                                <Text>{district}</Text>
-                                <Text>▼</Text>
-                            </TouchableOpacity>
-                            
-                            {/* District Dropdown Modal */}
-                            <Modal
-                                statusBarTranslucent={true}
-                                visible={showDistrictDropdown}
-                                transparent={true}
-                                animationType="fade"
-                                onRequestClose={() => setShowDistrictDropdown(false)}
-                            >
-                                <TouchableOpacity 
-                                    style={styles.modalOverlay} 
-                                    activeOpacity={1} 
-                                    onPress={() => setShowDistrictDropdown(false)}
-                                >
-                                    <View style={styles.dropdownContainer}>
-                                        <View style={styles.dropdownHeader}>
-                                            <TouchableOpacity onPress={() => setShowDistrictDropdown(false)}>
-                                                <Text style={styles.checkmark}>✓</Text>
-                                            </TouchableOpacity>
-                                            <Text style={styles.dropdownHeaderText}>Select District</Text>
-                                        </View>
-                                        <FlatList
-                                            data={filteredDistricts}
-                                            keyExtractor={(item) => item.id}
-                                            renderItem={({ item }) => (
-                                                <TouchableOpacity 
-                                                    style={styles.dropdownItem}
-                                                    onPress={() => selectDistrict(item)}
-                                                >
-                                                    <Text style={styles.dropdownItemText}>{item.hindi} | {item.english}</Text>
-                                                </TouchableOpacity>
-                                            )}
-                                            ListEmptyComponent={() => (
-                                                <View style={styles.emptyListContainer}>
-                                                    <Text style={styles.emptyListText}>Please select a state first</Text>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Text style={styles.sectionTitle}>YouTube URL</Text>
+                                            <TextInput
+                                                style={styles.formInput}
+                                                value={youtubeUrl}
+                                                onChangeText={setYoutubeUrl}
+                                                placeholder="Enter YouTube URL"
+                                                placeholderTextColor={GREY}
+                                            />
+                                            {youtubeUrl && (
+                                                <View style={styles.videoPreviewContainer}>
+                                                    <Text style={styles.previewText}>Video Preview:</Text>
+                                                    <Image 
+                                                        source={{ 
+                                                            uri: `https://img.youtube.com/vi/${extractYoutubeId(youtubeUrl) || 'invalid'}/0.jpg` 
+                                                        }}
+                                                        style={styles.videoThumbnail}
+                                                        resizeMode="cover"
+                                                    />
                                                 </View>
                                             )}
-                                        />
+                                        </>
+                                    )}
+                                </View>
+                            ) : (
+                                <View style={styles.formGroup}>
+                                    <Text style={styles.sectionTitle}>Featured Image</Text>
+                                    <View style={styles.fileSelectionContainer}>
+                                        <TouchableOpacity 
+                                            style={styles.chooseFileButton}
+                                            onPress={handleChooseImage}
+                                        >
+                                            <Text style={styles.chooseFileText}>Choose File</Text>
+                                        </TouchableOpacity>
+                                        <Text style={styles.fileSelectedText}>
+                                            {selectedImage ? selectedImage.name || 'image.jpg' : 'No file selected'}
+                                        </Text>
                                     </View>
+                                    
+                                    {selectedImage && (
+                                        <View style={styles.selectedImageContainer}>
+                                            <Image 
+                                                source={{ uri: selectedImage.uri }}
+                                                style={styles.selectedImage}
+                                                resizeMode="cover"
+                                            />
+                                        </View>
+                                    )}
+                                </View>
+                            )}
+                            
+                            {/* Content Section */}
+                            <View style={styles.contentContainer}>
+                                <Text style={styles.contentTitle}>Content</Text>
+                                
+                                {/* Formatting Toolbar */}
+                                <View style={styles.formattingToolbar}>
+                                    <TouchableOpacity onPress={() => handleFormatPress('bold')}>
+                                        <Text style={styles.formatIcon}>B</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleFormatPress('italic')}>
+                                        <Text style={styles.formatIcon}>I</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleFormatPress('bulletList')}>
+                                        <Text style={styles.formatIcon}>≡</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleFormatPress('numberedList')}>
+                                        <Text style={styles.formatIcon}>⋮</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleFormatPress('indent')}>
+                                        <Text style={styles.formatIcon}>⫶</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => handleFormatPress('code')}>
+                                        <Text style={styles.formatIcon}>&lt;&gt;</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                
+                                {/* Content Editor */}
+                                <TextInput
+                                    ref={contentInputRef}
+                                    style={styles.contentEditor}
+                                    placeholder="Write your content here..."
+                                    multiline={true}
+                                    numberOfLines={10}
+                                    value={content}
+                                    onChangeText={setContent}
+                                    onSelectionChange={handleSelectionChange}
+                                    textAlignVertical="top"
+                                />
+                            </View>
+                            
+                            {/* Category Section */}
+                            <View style={styles.categorySection}>
+                                <Text style={styles.organizeSectionTitle}>Organize</Text>
+                                
+                                {/* Category Dropdown */}
+                                <Text style={styles.categoryLabel}>CATEGORY</Text>
+                                <TouchableOpacity 
+                                    style={styles.categoryDropdown}
+                                    onPress={toggleCategoryDropdown}
+                                >
+                                    <Text>{category}</Text>
+                                    <Text>▼</Text>
                                 </TouchableOpacity>
-                            </Modal>
-                        </View>
-                        
-                        {/* Submit Button */}
-                        <View style={styles.submitButtonContainer}>
-                            <CustomBtn 
-                                text="Update Post"
-                                width={WIDTH * 0.85}
-                                onPress={handleUpdatePost}
-                                disabled={editLoading}
-                                loading={editLoading}
-                            />
-                        </View>
-                    </ScrollView>
-                )}
-            </KeyboardAvoidingView>
+                                
+                                {/* Category Dropdown Modal */}
+                                <Modal
+                                    statusBarTranslucent={true}
+                                    visible={showCategoryDropdown}
+                                    transparent={true}
+                                    animationType="fade"
+                                    onRequestClose={() => setShowCategoryDropdown(false)}
+                                >
+                                    <TouchableOpacity 
+                                        style={styles.modalOverlay} 
+                                        activeOpacity={1} 
+                                        onPress={() => setShowCategoryDropdown(false)}
+                                    >
+                                        <View style={styles.dropdownContainer}>
+                                            <View style={styles.dropdownHeader}>
+                                                <TouchableOpacity onPress={() => setShowCategoryDropdown(false)}>
+                                                    <Text style={styles.checkmark}>✓</Text>
+                                                </TouchableOpacity>
+                                                <Text style={styles.dropdownHeaderText}>Select Category</Text>
+                                            </View>
+                                            <FlatList
+                                                data={categories}
+                                                keyExtractor={(item) => item.id}
+                                                renderItem={({ item }) => (
+                                                    <TouchableOpacity 
+                                                        style={styles.dropdownItem}
+                                                        onPress={() => selectCategory(item)}
+                                                    >
+                                                        <Text style={styles.dropdownItemText}>{item.name}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            />
+                                        </View>
+                                    </TouchableOpacity>
+                                </Modal>
+                                
+                                {/* State Dropdown */}
+                                <Text style={[styles.categoryLabel, {marginTop: HEIGHT * 0.015}]}>STATE</Text>
+                                <TouchableOpacity 
+                                    style={styles.categoryDropdown}
+                                    onPress={toggleStateDropdown}
+                                >
+                                    <Text>{state}</Text>
+                                    <Text>▼</Text>
+                                </TouchableOpacity>
+                                
+                                {/* State Dropdown Modal */}
+                                <Modal
+                                    statusBarTranslucent={true}
+                                    visible={showStateDropdown}
+                                    transparent={true}
+                                    animationType="fade"
+                                    onRequestClose={() => setShowStateDropdown(false)}
+                                >
+                                    <TouchableOpacity 
+                                        style={styles.modalOverlay} 
+                                        activeOpacity={1} 
+                                        onPress={() => setShowStateDropdown(false)}
+                                    >
+                                        <View style={styles.dropdownContainer}>
+                                            <View style={styles.dropdownHeader}>
+                                                <TouchableOpacity onPress={() => setShowStateDropdown(false)}>
+                                                    <Text style={styles.checkmark}>✓</Text>
+                                                </TouchableOpacity>
+                                                <Text style={styles.dropdownHeaderText}>Select State</Text>
+                                            </View>
+                                            <FlatList
+                                                data={states}
+                                                keyExtractor={(item) => item.id}
+                                                renderItem={({ item }) => (
+                                                    <TouchableOpacity 
+                                                        style={styles.dropdownItem}
+                                                        onPress={() => selectState(item)}
+                                                    >
+                                                        <Text style={styles.dropdownItemText}>{item.hindi} | {item.english}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            />
+                                        </View>
+                                    </TouchableOpacity>
+                                </Modal>
+                                
+                                {/* District Dropdown */}
+                                <Text style={[styles.categoryLabel, {marginTop: HEIGHT * 0.015}]}>DISTRICT</Text>
+                                <TouchableOpacity 
+                                    style={styles.categoryDropdown}
+                                    onPress={toggleDistrictDropdown}
+                                >
+                                    <Text>{district}</Text>
+                                    <Text>▼</Text>
+                                </TouchableOpacity>
+                                
+                                {/* District Dropdown Modal */}
+                                <Modal
+                                    statusBarTranslucent={true}
+                                    visible={showDistrictDropdown}
+                                    transparent={true}
+                                    animationType="fade"
+                                    onRequestClose={() => setShowDistrictDropdown(false)}
+                                >
+                                    <TouchableOpacity 
+                                        style={styles.modalOverlay} 
+                                        activeOpacity={1} 
+                                        onPress={() => setShowDistrictDropdown(false)}
+                                    >
+                                        <View style={styles.dropdownContainer}>
+                                            <View style={styles.dropdownHeader}>
+                                                <TouchableOpacity onPress={() => setShowDistrictDropdown(false)}>
+                                                    <Text style={styles.checkmark}>✓</Text>
+                                                </TouchableOpacity>
+                                                <Text style={styles.dropdownHeaderText}>Select District</Text>
+                                            </View>
+                                            <FlatList
+                                                data={filteredDistricts}
+                                                keyExtractor={(item) => item.id}
+                                                renderItem={({ item }) => (
+                                                    <TouchableOpacity 
+                                                        style={styles.dropdownItem}
+                                                        onPress={() => selectDistrict(item)}
+                                                    >
+                                                        <Text style={styles.dropdownItemText}>{item.hindi} | {item.english}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                ListEmptyComponent={() => (
+                                                    <View style={styles.emptyListContainer}>
+                                                        <Text style={styles.emptyListText}>Please select a state first</Text>
+                                                    </View>
+                                                )}
+                                            />
+                                        </View>
+                                    </TouchableOpacity>
+                                </Modal>
+                            </View>
+                            
+                            {/* Submit Button */}
+                            <View style={styles.submitButtonContainer}>
+                                <CustomBtn 
+                                    text="Update Post"
+                                    width={WIDTH * 0.85}
+                                    onPress={handleUpdatePost}
+                                    disabled={editLoading}
+                                    loading={editLoading}
+                                />
+                            </View>
+                        </ScrollView>
+                    )}
+                </KeyboardAvoidingView>
+            </SafeAreaView>
         </Modal>
     );
 
@@ -2218,6 +2243,10 @@ const styles = StyleSheet.create({
         fontFamily: POPPINSLIGHT,
         color: BLACK
     },
+    modalSafeArea: {
+        flex: 1,
+        backgroundColor: BLUE,
+    },
     modalContainer: {
         flex: 1,
         backgroundColor: WHITE,
@@ -2228,8 +2257,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: WIDTH * 0.05,
         paddingVertical: HEIGHT * 0.02,
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
         backgroundColor: BLUE,
     },
     modalTitle: {

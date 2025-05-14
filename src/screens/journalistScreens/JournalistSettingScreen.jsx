@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Image, Linking, ScrollView, Modal } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Image, Linking, ScrollView, Modal, Platform, StatusBar } from "react-native";
 import { BLACK, BLUE, RED, WHITE } from "../../constants/color";
 import { HEIGHT, WIDTH } from "../../constants/config";
 import { BOLDMONTSERRAT, POPPINSLIGHT, POPPINSMEDIUM } from "../../constants/fontPath";
@@ -391,13 +391,19 @@ export default JournalistSettingScreen = ({ navigation }) => {
                 transparent={false}
                 visible={showTermsModal}
                 onRequestClose={() => setShowTermsModal(false)}
+                statusBarTranslucent={true}
             >
                 <View style={styles.modalContainer}>
+                    <MyStatusBar backgroundColor={WHITE} barStyle="dark-content" />
                     <View style={styles.modalHeader}>
                         <View style={styles.logoContainer}>
                             <Image source={APPLOGO} style={styles.modalLogo} />
                         </View>
-                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowTermsModal(false)}>
+                        <TouchableOpacity 
+                            style={styles.closeButton} 
+                            onPress={() => setShowTermsModal(false)}
+                            activeOpacity={0.7}
+                        >
                             <Text style={styles.closeButtonText}>✕</Text>
                         </TouchableOpacity>
                     </View>
@@ -413,16 +419,22 @@ export default JournalistSettingScreen = ({ navigation }) => {
                 transparent={false}
                 visible={showPrivacyModal}
                 onRequestClose={() => setShowPrivacyModal(false)}
+                statusBarTranslucent={true}
             >
                 <View style={styles.modalContainer}>
+                    <MyStatusBar backgroundColor={WHITE} barStyle="dark-content" />
                     <View style={styles.modalHeader}>
                         <View style={styles.logoContainer}>
                             <Image source={APPLOGO} style={styles.modalLogo} />
                         </View>
-                        <TouchableOpacity style={styles.closeButton} onPress={() => setShowPrivacyModal(false)}>
+                        <TouchableOpacity 
+                            style={styles.closeButton} 
+                            onPress={() => setShowPrivacyModal(false)}
+                            activeOpacity={0.7}
+                        >
                             <Text style={styles.closeButtonText}>✕</Text>
-                </TouchableOpacity>
-            </View>
+                        </TouchableOpacity>
+                    </View>
                     <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
                         <PrivacyPolicyContent />
                     </ScrollView>
@@ -507,6 +519,7 @@ const styles = StyleSheet.create({
     modalContainer: {
         flex: 1,
         backgroundColor: WHITE,
+        paddingTop: Platform.OS === 'ios' ? 0 : StatusBar.currentHeight,
     },
     modalHeader: {
         flexDirection: 'row',
@@ -521,6 +534,7 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         position: 'relative',
         paddingHorizontal: WIDTH * 0.04,
+        marginTop: Platform.OS === 'ios' ? HEIGHT * 0.05 : 0,
     },
     logoContainer: {
         alignItems: 'center',
@@ -536,6 +550,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         right: WIDTH * 0.04,
         padding: WIDTH * 0.02,
+        zIndex: 1,
     },
     closeButtonText: {
         fontSize: WIDTH * 0.05,
