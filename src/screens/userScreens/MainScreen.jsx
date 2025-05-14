@@ -578,14 +578,33 @@ export default function NMainScreenScreen({ navigation }) {
                 return;
             }
             
+            // Toggle like status based on current reaction state
+            const wasLiked = reaction[id] === "like";
+            const isLiked = !wasLiked;
+            
+            // Log the current state for debugging
+            console.log(`News ID ${id} - Current like status: ${wasLiked ? "liked" : "not liked"}`);
+            console.log(`News ID ${id} - Current like count: ${newsItem.likeCount || 0}`);
+            
             // Update UI first for immediate feedback
             setReaction((prevState) => ({
                 ...prevState,
-                [id]: prevState[id] === "like" ? null : "like",
+                [id]: isLiked ? "like" : null,
             }));
             
-            // Toggle like status
-            const isLiked = reaction[id] !== "like";
+            // Immediately update like count in UI
+            const currentLikeCount = parseInt(newsItem.likeCount || 0);
+            const newLikeCount = isLiked ? currentLikeCount + 1 : Math.max(0, currentLikeCount - 1);
+            console.log(`News ID ${id} - New like count (local): ${newLikeCount}`);
+            
+            // Update the like count in the newsData state
+            setNewsData(prevData => {
+                const updatedData = prevData.map(item => 
+                    item.id === id ? { ...item, likeCount: newLikeCount } : item
+                );
+                console.log(`Updated item in newsData with likeCount: ${newLikeCount}`);
+                return updatedData;
+            });
             
             // Persist like status in AsyncStorage
             try {
@@ -602,6 +621,13 @@ export default function NMainScreenScreen({ navigation }) {
                 
                 await AsyncStorage.setItem('likedPosts', JSON.stringify(likedPosts));
                 console.log(`Saved like status in AsyncStorage: ${isLiked}`);
+                
+                // Also update the like count in AsyncStorage
+                const likeCountsStr = await AsyncStorage.getItem('likeCounts');
+                let likeCounts = likeCountsStr ? JSON.parse(likeCountsStr) : {};
+                likeCounts[id] = newLikeCount;
+                await AsyncStorage.setItem('likeCounts', JSON.stringify(likeCounts));
+                console.log(`Saved like count in AsyncStorage: ${newLikeCount}`);
             } catch (error) {
                 console.error("Error saving like status in AsyncStorage:", error);
             }
@@ -617,6 +643,50 @@ export default function NMainScreenScreen({ navigation }) {
             
             if (response && response.success !== false) {
                 console.log(`Successfully ${isLiked ? 'liked' : 'unliked'} news`);
+                
+                // Add a small delay before fetching the stats to ensure the server has processed the like
+                setTimeout(async () => {
+                    try {
+                        // Fetch the updated like count from the stats endpoint
+                        const statsEndpoint = `${BASE_URL}api/interaction/news/${id}/stats`;
+                        console.log(`Fetching stats from: ${statsEndpoint}`);
+                        const statsResponse = await GETNETWORK(statsEndpoint, true);
+                        console.log("Stats API response:", statsResponse);
+                        
+                        if (statsResponse?.success && statsResponse?.data) {
+                            // Extract the like count from the stats response
+                            const serverLikeCount = statsResponse.data?.likes_count || 
+                                                  statsResponse.data?.like_count || 
+                                                  statsResponse.data?.likes || 0;
+                            
+                            console.log(`Server like count for news ${id}: ${serverLikeCount}`);
+                            
+                            // Only update if the server count is valid and different
+                            if (serverLikeCount !== undefined && serverLikeCount >= 0) {
+                                // If server count is 0 but we just liked it, keep the local count
+                                const finalCount = (serverLikeCount === 0 && isLiked) ? newLikeCount : serverLikeCount;
+                                
+                                console.log(`Final like count for news ${id}: ${finalCount}`);
+                                
+                                // Update UI with accurate server count
+                                setNewsData(prevData => 
+                                    prevData.map(item => 
+                                        item.id === id ? { ...item, likeCount: finalCount } : item
+                                    )
+                                );
+                                
+                                // Update in AsyncStorage
+                                const likeCountsStr = await AsyncStorage.getItem('likeCounts');
+                                let likeCounts = likeCountsStr ? JSON.parse(likeCountsStr) : {};
+                                likeCounts[id] = finalCount;
+                                await AsyncStorage.setItem('likeCounts', JSON.stringify(likeCounts));
+                            }
+                        }
+                    } catch (statsError) {
+                        console.error("Error fetching updated stats:", statsError);
+                        // Keep the locally updated count on error
+                    }
+                }, 500); // Add a 500ms delay
             } else {
                 if (response && response.message) {
                     console.error("API error:", response.message);
@@ -624,7 +694,7 @@ export default function NMainScreenScreen({ navigation }) {
             }
         } catch (error) {
             console.error(`Error liking news:`, error);
-            // Even if API fails, keep the local state
+            // Even if API fails, keep the local state for better UX
         }
     };
 
