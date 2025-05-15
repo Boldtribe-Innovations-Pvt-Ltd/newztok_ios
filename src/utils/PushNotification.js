@@ -13,24 +13,26 @@ export const requestUserPermission = async () => {
         const enabled =
             authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
             authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+        
         if (enabled) {
-            console.log('Notification permissions granted, getting FCM token...');
-            getFCM();
+            console.log('Notification permissions granted');
+            return true;
         } else {
             console.log('Notification permissions not granted');
+            return false;
         }
     } catch (error) {
         console.error('Error requesting notification permissions:', error);
+        return false;
     }
 }
 
-const postFcmdetails = async () => {
+const postFcmdetails = async (token) => {
     try {
         const url = `${BASE_URL}enterFCMTokenDetails?_format=json`
-        const user = await getStringByKey('fcmtoken')
-        console.log('Posting FCM token to server:', user)
+        console.log('Posting FCM token to server:', token)
         const obj = {
-            "token": user
+            "token": token
         }
 
         POSTNETWORK(url, obj).then(res => {
@@ -43,26 +45,43 @@ const postFcmdetails = async () => {
     }
 }
 
-const getFCM = async () => {
+export const getFCM = async () => {
     try {
+        // First check if we already have a token stored
         let fcmToken = await AsyncStorage.getItem('fcmToken');
         console.log('Stored FCM token:', fcmToken);
+
         if (!fcmToken) {
+            // Make sure we're registered for remote messages
+            await messaging().registerDeviceForRemoteMessages();
+            
+            // Get a new token
             const newToken = await messaging().getToken();
             console.log('New FCM token:', newToken);
+            
             if (newToken) {
+                // Store the token in both places for compatibility
                 await AsyncStorage.setItem('fcmToken', newToken);
-                await storeStringByKey('fcmtoken', newToken); // Keeping this for compatibility with existing code
-                postFcmdetails();
+                await storeStringByKey('fcmtoken', newToken);
+                
+                // Post the token to the server
+                await postFcmdetails(newToken);
+                
+                return newToken;
             }
         }
+        
+        return fcmToken;
     } catch (error) {
         console.error('Error getting FCM token:', error);
+        return null;
     }
 }
 
 export const NotificationListener = () => {
-    console.log("first")
+    console.log("Setting up notification listeners...");
+    
+    // Handle notification when app is in background
     messaging().onNotificationOpenedApp(remoteMessage => {
         console.log(
             'Notification caused app to open from background state:',
@@ -70,25 +89,26 @@ export const NotificationListener = () => {
         );
     });
 
+    // Handle notification when app is closed
     messaging()
-    .getInitialNotification()
-    .then(remoteMessage => {
-        // Vibration.vibrate();
-        if (remoteMessage) {
-            console.log(
-                'Notification caused app to open from quit state:',
-                remoteMessage.notification,
-            );
-        }
+        .getInitialNotification()
+        .then(remoteMessage => {
+            if (remoteMessage) {
+                console.log(
+                    'Notification caused app to open from quit state:',
+                    remoteMessage.notification,
+                );
+            }
+        });
+
+    // Handle foreground messages
+    messaging().onMessage(async remoteMessage => {
+        console.log('Received foreground message:', remoteMessage);
+        // You can add custom handling here, like showing a local notification
     });
 
-    messaging().onMessage(async remoteMessage=>{
-        // Vibration.vibrate();
-        console.log('Notification caused app to open from forground state:',remoteMessage);
-    })
-
+    // Handle background messages
     messaging().setBackgroundMessageHandler(async remoteMessage => {
-        // Vibration.vibrate();
         console.log('Message handled in the background!', remoteMessage);
     });
 }

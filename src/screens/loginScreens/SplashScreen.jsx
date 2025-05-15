@@ -1,32 +1,60 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, PermissionsAndroid, StyleSheet, View, Text } from "react-native";
+import { Animated, PermissionsAndroid, StyleSheet, View, Text, Platform } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LOGO2 } from "../../constants/imagePath";
-// import { NotificationListener, requestUserPermission } from "../../utils/PushNotification";
+import { NotificationListener, requestUserPermission } from "../../utils/PushNotification";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStringByKey, getObjByKey } from "../../utils/Storage";
-
+import messaging from '@react-native-firebase/messaging';
 
 export default SplashScreen = ({ navigation }) => {
   const logoScale = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
 
-  // const firebaseConfig = {
-  //   apiKey: "AIzaSyAUUZoHD6_v8-d1I9-CsJ4q1I6ibJm_W7Q",
-  //   authDomain: "newstok-686c5.firebaseapp.com",
-  //   projectId: "newstok-686c5",
-  //   storageBucket: "newstok-686c5.firebasestorage.app",
-  //   messagingSenderId: "907742792971",
-  //   appId: "1:907742792971:android:933b0ef7421f554e64260e"
-  // };
-  
+  const initializeFirebase = async () => {
+    try {
+      // Request notification permissions
+      const hasPermission = await requestUserPermission();
+      
+      if (hasPermission) {
+        try {
+          // Register for remote messages
+          await messaging().registerDeviceForRemoteMessages();
+          
+          // Get the FCM token
+          const token = await messaging().getToken();
+          console.log('FCM Token:', token);
+          
+          if (token) {
+            await AsyncStorage.setItem('fcmToken', token);
+            await AsyncStorage.setItem('fcmtoken', token); // For compatibility
+          }
+        } catch (error) {
+          if (error.code === 'messaging/unknown' && error.message.includes('aps-environment')) {
+            console.log('Push notifications not configured in Xcode. Please enable Push Notifications capability.');
+          } else {
+            console.error('Firebase messaging error:', error);
+          }
+        }
+      }
+      
+      // Set up notification listeners
+      NotificationListener();
+    } catch (error) {
+      console.error('Firebase initialization error:', error);
+    }
+  };
 
-  // useEffect(()=>{
-  //   PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-  //   requestUserPermission();
-  //   NotificationListener();
-  // },[])
+  useEffect(() => {
+    // Request notification permissions for Android
+    if (Platform.OS === 'android') {
+      PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    }
+    
+    // Initialize Firebase and get FCM token
+    initializeFirebase();
+  }, []);
 
   useEffect(() => {
     Animated.timing(logoScale, {
