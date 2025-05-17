@@ -840,9 +840,9 @@ const styles = StyleSheet.create({
         zIndex: -1,
     },
     logoImg: {
-        height: 140,
-        width: 140,
-        resizeMode: "center",
+        height: 80,
+        width: 80,
+        resizeMode: "contain",
     },
     settingsText: {
         fontSize: 20,
