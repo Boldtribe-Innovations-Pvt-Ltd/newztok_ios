@@ -172,14 +172,15 @@ export default SearchScreen = ({ navigation }) => {
                 }
             } else if (query.includes('sports')) {
                 apiUrl = `${BASE_URL}api/news/category/sports`;
+            } else if (query.includes('national')) {
+                // For national news search
+                apiUrl = `${BASE_URL}api/news/category/national`;
             } else if (query.includes('international')) {
                 apiUrl = `${BASE_URL}api/news/category/international`;
             } else if (query.includes('entertainment')) {
                 apiUrl = `${BASE_URL}api/news/category/entertainment`;
             } else if (query.includes('trending')) {
                 apiUrl = `${BASE_URL}api/news/trending`;
-            } else if (query.includes('national')) {
-                apiUrl = `${BASE_URL}api/news/category/national`;
             } else if (query.includes('state')) {
                 // For state news search
                 apiUrl = `${BASE_URL}api/news/location/bihar/patna`;
@@ -1222,7 +1223,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     commenterName: {
-        fontFamily: POPPINSMEDIUM,
+        fontFamily: POPPINSLIGHT,
         color: BLACK,
         fontSize: WIDTH * 0.035,
     },

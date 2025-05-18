@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
     StyleSheet,
     Text,
@@ -12,12 +12,14 @@ import {
     Dimensions,
     Share,
     Alert,
+    ActivityIndicator,
+    Animated,
 } from "react-native";
 import { BLACK, WHITE, GREY, BLUE, RED } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { MyHeader } from "../../components/commonComponents/MyHeader";
 import { THREEDOTS, DOWNARROW, LOGO, LIKE, PRESSLIKE, VIEW, WHATSAPP } from "../../constants/imagePath";
-import { notificationData } from "../../assets/data/notificationData";
+// import { notificationData } from "../../assets/data/notificationData";
 import { ToastMessage } from "../../components/commonComponents/ToastMessage";
 import { WIDTH, HEIGHT } from "../../constants/config";
 import { POPPINSMEDIUM, POPPINSLIGHT } from "../../constants/fontPath";
@@ -25,7 +27,45 @@ import HTML from 'react-native-render-html';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL } from "../../constants/url";
 import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+
+const NotificationSkeleton = () => {
+    const animatedValue = new Animated.Value(0);
+
+    React.useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(animatedValue, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(animatedValue, {
+                    toValue: 0,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+            ])
+        ).start();
+    }, []);
+
+    const opacity = animatedValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.3, 0.7],
+    });
+
+    return (
+        <View style={styles.skeletonCard}>
+            <Animated.View style={[styles.skeletonImage, { opacity }]} />
+            <View style={styles.skeletonContent}>
+                <Animated.View style={[styles.skeletonTitle, { opacity }]} />
+                <Animated.View style={[styles.skeletonDate, { opacity }]} />
+                <Animated.View style={[styles.skeletonText, { opacity }]} />
+                <Animated.View style={[styles.skeletonText, { opacity, width: '60%' }]} />
+            </View>
+        </View>
+    );
+};
 
 export default NotificationScreen = () => {
     const [modalVisible, setModalVisible] = useState(false);
@@ -41,26 +81,87 @@ export default NotificationScreen = () => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [userData, setUserData] = useState(null);
     const [liking, setLiking] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [todayNotifications, setTodayNotifications] = useState([]);
+    const [previousNotifications, setPreviousNotifications] = useState([]);
     const navigation = useNavigation();
 
     const handleCardPress = (item) => {
+        if (!item) return;
         setSelectedNotification(item);
         setModalVisible(true);
     };
 
-    useEffect(() => {
-        checkLoginStatus();
+    const fetchNotifications = useCallback(async () => {
+        setLoading(true);
+        try {
+            let userToken = await AsyncStorage.getItem('userToken');
+            if (!userToken) {
+                const userStr = await AsyncStorage.getItem('user');
+                if (userStr) {
+                    const user = JSON.parse(userStr);
+                    userToken = user?.token;
+                }
+            }
+            if (!userToken) {
+                userToken = await AsyncStorage.getItem('loginResponse');
+            }
+
+            console.log("Fetching notifications with token:", userToken ? "Token exists" : "No token");
+            const notificationEndpoint = `${BASE_URL}api/notifications`;
+            console.log("Notification endpoint:", notificationEndpoint);
+            
+            const response = await GETNETWORK(notificationEndpoint, true);
+            console.log("API Response:", JSON.stringify(response, null, 2));
+            
+            if (!response) {
+                throw new Error("No response received from the server");
+            }
+            
+            if (!response.success) {
+                throw new Error(`API Error: ${response.message || "Unknown error"}`);
+            }
+            
+            // Handle both array and object response formats
+            let notificationsData = [];
+            if (Array.isArray(response.data)) {
+                notificationsData = response.data;
+            } else if (response.data && typeof response.data === 'object') {
+                // If data is an object, try to find the notifications array within it
+                if (Array.isArray(response.data.notifications)) {
+                    notificationsData = response.data.notifications;
+                } else if (Array.isArray(response.data.data)) {
+                    notificationsData = response.data.data;
+                } else {
+                    // If we can't find an array, convert the object to an array
+                    notificationsData = Object.values(response.data);
+                }
+            }
+            
+            if (notificationsData.length === 0) {
+                console.log("No notifications found in the response");
+            }
+            
+            setNotifications(notificationsData);
+            
+        } catch (error) {
+            console.error("Error fetching notifications:", {
+                message: error?.message,
+                stack: error?.stack,
+                response: error?.response
+            });
+            setToastMessage({
+                visible: true,
+                message: error?.message || "Error loading notifications",
+                type: "error"
+            });
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    useEffect(() => {
-        if (selectedNotification?.id) {
-            fetchLikeCount();
-            fetchViewCount();
-            recordView();
-        }
-    }, [selectedNotification]);
-
-    const checkLoginStatus = async () => {
+    const checkLoginStatus = useCallback(async () => {
         try {
             let userToken = await AsyncStorage.getItem('userToken');
             if (!userToken) {
@@ -96,13 +197,13 @@ export default NotificationScreen = () => {
             console.error("Error checking login status:", error);
             setIsLoggedIn(false);
         }
-    };
+    }, []);
 
-    const fetchLikeCount = async () => {
+    const fetchLikeCount = useCallback(async () => {
+        if (!selectedNotification?.id) return;
+        
         try {
-            const targetId = selectedNotification?.id;
-            if (!targetId) return;
-
+            const targetId = selectedNotification.id;
             try {
                 const likeCountsStr = await AsyncStorage.getItem('likeCounts');
                 if (likeCountsStr) {
@@ -150,13 +251,13 @@ export default NotificationScreen = () => {
         } catch (error) {
             console.error("Error in fetchLikeCount:", error);
         }
-    };
+    }, [selectedNotification]);
 
-    const fetchViewCount = async () => {
+    const fetchViewCount = useCallback(async () => {
+        if (!selectedNotification?.id) return;
+        
         try {
-            const targetId = selectedNotification?.id;
-            if (!targetId) return;
-
+            const targetId = selectedNotification.id;
             try {
                 const viewCountsStr = await AsyncStorage.getItem('viewCounts');
                 if (viewCountsStr) {
@@ -196,7 +297,7 @@ export default NotificationScreen = () => {
         } catch (error) {
             console.error("Error in fetchViewCount:", error);
         }
-    };
+    }, [selectedNotification]);
 
     const recordView = async () => {
         try {
@@ -326,7 +427,8 @@ export default NotificationScreen = () => {
         } catch (error) {
             console.error(`Error ${liked ? 'unliking' : 'liking'} news:`, error);
             
-            if (error.message?.includes("unauthorized") || error.message?.includes("401")) {
+            if (error && error.message && 
+               (error.message.includes("unauthorized") || error.message.includes("401"))) {
                 setToastMessage({
                     visible: true,
                     message: "Session expired. Please login again",
@@ -360,10 +462,10 @@ export default NotificationScreen = () => {
                 return text.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
             };
 
-            let shareMessage = `${removeHtmlTags(selectedNotification.title)}\n\n`;
+            let shareMessage = `${removeHtmlTags(selectedNotification.title || "")}\n\n`;
             
-            if (selectedNotification.news) {
-                const cleanContent = removeHtmlTags(selectedNotification.news);
+            if (selectedNotification.message) {
+                const cleanContent = removeHtmlTags(selectedNotification.message);
                 const contentPreview = cleanContent.length > 100 
                     ? cleanContent.substring(0, 100) + '...' 
                     : cleanContent;
@@ -377,12 +479,14 @@ export default NotificationScreen = () => {
             };
 
             if (selectedNotification.image) {
-                shareOptions.url = selectedNotification.image;
+                shareOptions.url = typeof selectedNotification.image === 'string' 
+                    ? selectedNotification.image 
+                    : null;
             }
 
             await Share.share(shareOptions, {
                 dialogTitle: 'Share News',
-                subject: removeHtmlTags(selectedNotification.title)
+                subject: removeHtmlTags(selectedNotification.title || "")
             });
         } catch (error) {
             console.error("Error sharing news: ", error);
@@ -394,26 +498,47 @@ export default NotificationScreen = () => {
         }
     };
 
-    const renderItem = ({ item }) => (
-        <TouchableOpacity 
-            key={item.id} 
-            style={styles.card}
-            onPress={() => handleCardPress(item)}
-        >
-            <Image source={item.image} style={styles.image} />
-            <View style={styles.contentContainer}>
-                <Text style={styles.headline} numberOfLines={2} ellipsizeMode="tail">{item.title}</Text>
-                <Text style={styles.date}>{item.date}</Text>
-                <Text style={styles.newsContent} numberOfLines={2}>
-                    {item.news ? `${item.news.substring(0, 100)}...` : "No content available"}
-                </Text>
-                <View style={styles.footer}>
-                    <Text style={styles.readMore}>Read More</Text>
-                    <Image source={DOWNARROW} style={styles.downArrow} />
+    const renderItem = ({ item }) => {
+        if (!item || !item.id) return null;
+        
+        // Safely get text content for display
+        const safeTitle = item.title || "No title";
+        const safeDate = item.created_at ? new Date(item.created_at).toLocaleDateString() : "Unknown date";
+        const safeNews = item.message || "No content available";
+        const newsPreview = safeNews.length > 100 
+            ? safeNews.substring(0, 100) + "..." 
+            : safeNews;
+            
+        return (
+            <TouchableOpacity 
+                key={item.id} 
+                style={styles.card}
+                onPress={() => handleCardPress(item)}
+            >
+                <Image 
+                    source={typeof item.image === 'string' && item.image 
+                        ? { uri: item.image } 
+                        : LOGO} 
+                    style={styles.image}
+                    resizeMode="cover"
+                    defaultSource={LOGO}
+                />
+                <View style={styles.contentContainer}>
+                    <Text style={styles.headline} numberOfLines={2} ellipsizeMode="tail">
+                        {safeTitle}
+                    </Text>
+                    <Text style={styles.date}>{safeDate}</Text>
+                    <Text style={styles.newsContent} numberOfLines={2}>
+                        {newsPreview}
+                    </Text>
+                    <View style={styles.footer}>
+                        <Text style={styles.readMore}>Read More</Text>
+                        <Image source={DOWNARROW} style={styles.downArrow} />
+                    </View>
                 </View>
-            </View>
-        </TouchableOpacity>
-    );
+            </TouchableOpacity>
+        );
+    };
 
     const renderNewsModal = () => (
         <Modal
@@ -435,12 +560,22 @@ export default NotificationScreen = () => {
                     {selectedNotification && (
                         <>
                             <Image 
-                                source={selectedNotification.image} 
+                                source={typeof selectedNotification.image === 'string' && selectedNotification.image
+                                    ? { uri: selectedNotification.image } 
+                                    : LOGO} 
                                 style={styles.modalImage}
                                 resizeMode="cover"
+                                defaultSource={LOGO}
                             />
                             
-                            <Text style={styles.modalTitle}>{selectedNotification.title}</Text>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>
+                                    {selectedNotification.title || "No title"}
+                                </Text>
+                                <Text style={styles.modalDate}>
+                                    {selectedNotification.created_at ? new Date(selectedNotification.created_at).toLocaleDateString() : "Unknown date"}
+                                </Text>
+                            </View>
                             
                             <View style={styles.modalActionRow}>
                                 <View style={{ flexDirection: "row" }}>
@@ -470,8 +605,12 @@ export default NotificationScreen = () => {
                                 </TouchableOpacity>
                             </View>
 
-                            <Text style={styles.modalDate}>{selectedNotification.date}</Text>
-                            <Text style={styles.modalContent}>{selectedNotification.news}</Text>
+                            <View style={styles.modalContentContainer}>
+                                <Text style={styles.modalContentHeading}>New Article</Text>
+                                <Text style={styles.modalContent}>
+                                    {selectedNotification.message || "No content available"}
+                                </Text>
+                            </View>
                         </>
                     )}
                 </ScrollView>
@@ -479,32 +618,60 @@ export default NotificationScreen = () => {
         </Modal>
     );
 
+    const renderSkeletonLoader = () => {
+        return (
+            <ScrollView contentContainerStyle={styles.scrollContainer}>
+                {[1, 2, 3, 4, 5].map((item) => (
+                    <NotificationSkeleton key={item} />
+                ))}
+            </ScrollView>
+        );
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            checkLoginStatus();
+            fetchNotifications();
+            
+            return () => {
+                // Cleanup if needed
+            };
+        }, [checkLoginStatus, fetchNotifications])
+    );
+
+    useFocusEffect(
+        useCallback(() => {
+            if (selectedNotification?.id) {
+                fetchLikeCount();
+                fetchViewCount();
+                recordView();
+            }
+        }, [selectedNotification, fetchLikeCount, fetchViewCount])
+    );
+
     return (
         <>
             <MyStatusBar backgroundColor={WHITE} />
             <MyHeader showLocationDropdown={false} showBackButton={false} />
 
-            <ScrollView contentContainerStyle={styles.scrollContainer}>
-                <Text style={styles.todayText}>Today</Text>
-                <View style={styles.verticalLine} />
-
-                <FlatList
-                    data={notificationData}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={renderItem}
-                    scrollEnabled={false}
-                />
-
-                <Text style={styles.previousText}>Previous</Text>
-                <View style={styles.verticalLine} />
-
-                <FlatList
-                    data={notificationData}
-                    keyExtractor={(item) => `prev-${item.id.toString()}`}
-                    renderItem={renderItem}
-                    scrollEnabled={false}
-                />
-            </ScrollView>
+            {loading ? (
+                renderSkeletonLoader()
+            ) : (
+                <ScrollView contentContainerStyle={styles.scrollContainer}>
+                    {notifications.length > 0 ? (
+                        <FlatList
+                            data={notifications}
+                            keyExtractor={(item) => (item?.id || Math.random()).toString()}
+                            renderItem={renderItem}
+                            scrollEnabled={false}
+                        />
+                    ) : (
+                        <View style={styles.noNotificationsContainer}>
+                            <Text style={styles.noNotificationsText}>No notifications available</Text>
+                        </View>
+                    )}
+                </ScrollView>
+            )}
 
             {renderNewsModal()}
 
@@ -527,6 +694,29 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         backgroundColor: WHITE,
         padding: WIDTH * 0.025,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: WHITE,
+    },
+    loadingText: {
+        marginTop: HEIGHT * 0.01,
+        fontSize: WIDTH * 0.035,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+    },
+    noNotificationsContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: HEIGHT * 0.5,
+    },
+    noNotificationsText: {
+        fontSize: WIDTH * 0.04,
+        fontFamily: POPPINSMEDIUM,
+        color: GREY,
     },
     todayText: {
         fontSize: WIDTH * 0.035,
@@ -628,11 +818,20 @@ const styles = StyleSheet.create({
         borderRadius: WIDTH * 0.02,
         marginBottom: HEIGHT * 0.02,
     },
+    modalHeader: {
+        marginBottom: HEIGHT * 0.02,
+    },
     modalTitle: {
         fontSize: WIDTH * 0.045,
         fontFamily: POPPINSMEDIUM,
         color: BLACK,
-        marginBottom: HEIGHT * 0.02,
+        marginBottom: HEIGHT * 0.01,
+        lineHeight: HEIGHT * 0.03,
+    },
+    modalDate: {
+        fontSize: WIDTH * 0.035,
+        fontFamily: POPPINSLIGHT,
+        color: GREY,
     },
     modalActionRow: {
         flexDirection: 'row',
@@ -657,16 +856,63 @@ const styles = StyleSheet.create({
         color: BLACK,
         marginTop: HEIGHT * 0.005,
     },
-    modalDate: {
-        fontSize: WIDTH * 0.035,
-        fontFamily: POPPINSLIGHT,
-        color: GREY,
-        marginBottom: HEIGHT * 0.02,
+    modalContentContainer: {
+        marginTop: HEIGHT * 0.02,
+    },
+    modalContentHeading: {
+        fontSize: WIDTH * 0.04,
+        fontFamily: POPPINSMEDIUM,
+        color: BLACK,
+        marginBottom: HEIGHT * 0.015,
     },
     modalContent: {
         fontSize: WIDTH * 0.038,
         fontFamily: POPPINSLIGHT,
         color: BLACK,
         lineHeight: HEIGHT * 0.03,
+    },
+    skeletonCard: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        backgroundColor: WHITE,
+        padding: WIDTH * 0.02,
+        borderRadius: WIDTH * 0.015,
+        elevation: 2,
+        shadowColor: BLACK,
+        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 1 },
+        marginBottom: HEIGHT * 0.012,
+    },
+    skeletonImage: {
+        width: WIDTH * 0.25,
+        height: HEIGHT * 0.08,
+        borderRadius: WIDTH * 0.01,
+        marginRight: WIDTH * 0.02,
+        backgroundColor: GREY,
+    },
+    skeletonContent: {
+        flex: 1,
+        justifyContent: "flex-start",
+    },
+    skeletonTitle: {
+        width: '80%',
+        height: WIDTH * 0.045,
+        backgroundColor: GREY,
+        borderRadius: WIDTH * 0.005,
+        marginBottom: HEIGHT * 0.003,
+    },
+    skeletonDate: {
+        width: '40%',
+        height: WIDTH * 0.025,
+        backgroundColor: GREY,
+        borderRadius: WIDTH * 0.005,
+        marginBottom: HEIGHT * 0.003,
+    },
+    skeletonText: {
+        width: '100%',
+        height: WIDTH * 0.03,
+        backgroundColor: GREY,
+        borderRadius: WIDTH * 0.005,
+        marginBottom: HEIGHT * 0.005,
     },
 });

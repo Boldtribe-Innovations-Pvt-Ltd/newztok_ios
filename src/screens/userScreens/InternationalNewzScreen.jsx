@@ -587,6 +587,17 @@ export default function InternationalNewzScreen({ navigation }) {
             // Toggle like status
             const isLiked = reaction[id] !== "like";
             
+            // Update like count in the newsData state
+            setNewsData(prevData => 
+                prevData.map(item => {
+                    if (item.id === id) {
+                        const newLikeCount = isLiked ? (item.likeCount || 0) + 1 : Math.max(0, (item.likeCount || 0) - 1);
+                        return { ...item, likeCount: newLikeCount };
+                    }
+                    return item;
+                })
+            );
+            
             // Persist like status in AsyncStorage
             try {
                 const likedPostsStr = await AsyncStorage.getItem('likedPosts');
@@ -602,6 +613,13 @@ export default function InternationalNewzScreen({ navigation }) {
                 
                 await AsyncStorage.setItem('likedPosts', JSON.stringify(likedPosts));
                 console.log(`Saved like status in AsyncStorage: ${isLiked}`);
+                
+                // Store updated like count in AsyncStorage
+                const likeCountsStr = await AsyncStorage.getItem('likeCounts');
+                let likeCounts = likeCountsStr ? JSON.parse(likeCountsStr) : {};
+                likeCounts[id] = isLiked ? (likeCounts[id] || 0) + 1 : Math.max(0, (likeCounts[id] || 0) - 1);
+                await AsyncStorage.setItem('likeCounts', JSON.stringify(likeCounts));
+                
             } catch (error) {
                 console.error("Error saving like status in AsyncStorage:", error);
             }
@@ -1720,7 +1738,7 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     commenterName: {
-        fontFamily: POPPINSMEDIUM,
+        fontFamily: POPPINSLIGHT,
         color: BLACK,
         fontSize: WIDTH * 0.035,
     },

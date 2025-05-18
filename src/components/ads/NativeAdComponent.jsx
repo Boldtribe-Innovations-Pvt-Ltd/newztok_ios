@@ -285,7 +285,8 @@ const NativeAdComponent = ({ style }) => {
 
 const styles = StyleSheet.create({
   container: {
-    width: WIDTH * 0.05,
+    width: WIDTH * 0.5,
+    height: HEIGHT * 0.32,
     marginVertical: HEIGHT * 0.01,
     borderWidth: 2,
     borderColor: RED,
@@ -309,7 +310,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: '100%',
-    height: HEIGHT * 0.09,
+    height: HEIGHT * 0.22,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: HEIGHT * 0.008,

@@ -1739,10 +1739,10 @@ const styles = StyleSheet.create({
         marginLeft: WIDTH * 0.01, // Slight offset for the play icon
     },
     socialMediaCard: {
-        height: HEIGHT * 0.18,
+        height: HEIGHT * 0.085, // Decreased from 0.18 to 0.12
         borderRadius: WIDTH * 0.03,
-        marginVertical: HEIGHT * 0.02,
-        padding: WIDTH * 0.05,
+        marginVertical: HEIGHT * 0.01, // Decreased from 0.02 to 0.01
+        padding: WIDTH * 0.03, // Decreased from 0.05 to 0.03
         justifyContent: 'center',
         alignItems: 'center',
         width: WIDTH * 0.9,

@@ -723,7 +723,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                     [newsId]: count
                 }));
                 
-                // Update isLikedByUser state (if you add this state)
+                // Update isLikedByUser state
                 if (isLiked) {
                     setReaction(prev => ({
                         ...prev,
@@ -796,7 +796,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
         }, [selectedState, selectedDistrict])
     );
 
-    // Update handleLike function to use the updated token handling approach
+    // Update handleLike function
     const handleLike = async (id) => {
         try {
             // Get token to verify login status
@@ -852,6 +852,13 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                 
                 await AsyncStorage.setItem('likedPosts', JSON.stringify(likedPosts));
                 console.log(`Saved like status in AsyncStorage: ${isLiked}`);
+                
+                // Store updated like count in AsyncStorage
+                const likeCountsStr = await AsyncStorage.getItem('likeCounts');
+                let likeCounts = likeCountsStr ? JSON.parse(likeCountsStr) : {};
+                likeCounts[id] = isLiked ? (likeCounts[id] || 0) + 1 : Math.max(0, (likeCounts[id] || 0) - 1);
+                await AsyncStorage.setItem('likeCounts', JSON.stringify(likeCounts));
+                
             } catch (error) {
                 console.error("Error saving like status in AsyncStorage:", error);
             }
