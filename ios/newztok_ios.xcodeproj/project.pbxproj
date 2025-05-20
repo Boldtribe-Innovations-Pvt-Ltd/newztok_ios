@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0782B3EE4F9ABEF0E41ADE84 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		13235B5FC1D54AB79C8CC9AD /* Poppins-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 06D0BC7195E7403B9CF00164 /* Poppins-SemiBold.ttf */; };
+		139F107E922AD4C2A25CD892 /* Pods_newztok_ios.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 69792D9313F27622C6BC5EF1 /* Pods_newztok_ios.framework */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		1EC3500AC8BE467090BAEDA5 /* Montserrat-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AA8081DBDA9C4C7FB15885A9 /* Montserrat-SemiBold.ttf */; };
 		22AA40A52C6B44CC80360ED3 /* Poppins-Light.ttf in Resources */ = {isa = PBXBuildFile; fileRef = CCE2CD068D7246AA836738A5 /* Poppins-Light.ttf */; };
@@ -19,7 +20,6 @@
 		3FF1EF4F2DD5E92E00455157 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3FF1EF4E2DD5E92E00455157 /* GoogleService-Info.plist */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
-		945776180E2A926772B535C4 /* libPods-newztok_ios.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 61ABF60016405AE2F29BE8BF /* libPods-newztok_ios.a */; };
 		D529CD60527B4DFC8DB8ED52 /* Lora-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 14CE8FB93FBB4A3CA24F8E3A /* Lora-Bold.ttf */; };
 /* End PBXBuildFile section */
 
@@ -36,7 +36,7 @@
 		3FAFE1112DD60A19006EE210 /* iAd.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = iAd.framework; path = System/Library/Frameworks/iAd.framework; sourceTree = SDKROOT; };
 		3FAFE1132DD60A2B006EE210 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		3FF1EF4E2DD5E92E00455157 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
-		61ABF60016405AE2F29BE8BF /* libPods-newztok_ios.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-newztok_ios.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		69792D9313F27622C6BC5EF1 /* Pods_newztok_ios.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_newztok_ios.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = newztok_ios/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = newztok_ios/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		9EB191034CDF7F3C9880F0D4 /* Pods-newztok_ios.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-newztok_ios.debug.xcconfig"; path = "Target Support Files/Pods-newztok_ios/Pods-newztok_ios.debug.xcconfig"; sourceTree = "<group>"; };
@@ -55,7 +55,7 @@
 				3FAFE1142DD60A2B006EE210 /* Security.framework in Frameworks */,
 				3FAFE1102DD60A11006EE210 /* AdSupport.framework in Frameworks */,
 				3FAFE1122DD60A19006EE210 /* iAd.framework in Frameworks */,
-				945776180E2A926772B535C4 /* libPods-newztok_ios.a in Frameworks */,
+				139F107E922AD4C2A25CD892 /* Pods_newztok_ios.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,7 +94,7 @@
 				3FAFE10F2DD60A11006EE210 /* AdSupport.framework */,
 				3FAFE10D2DD609F0006EE210 /* UserNotifications.framework */,
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				61ABF60016405AE2F29BE8BF /* libPods-newztok_ios.a */,
+				69792D9313F27622C6BC5EF1 /* Pods_newztok_ios.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -326,7 +326,8 @@
 				DEVELOPMENT_TEAM = G6SK2ZRGMY;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = newztok_ios/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = NewzTok;
+				INFOPLIST_KEY_CFBundleDisplayName = "NewzTok Media";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -338,7 +339,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.9ctechlab.newztok;
+				PRODUCT_BUNDLE_IDENTIFIER = com.newztok.newztok2025;
 				PRODUCT_NAME = newztok_ios;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -359,7 +360,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = G6SK2ZRGMY;
 				INFOPLIST_FILE = newztok_ios/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = NewzTok;
+				INFOPLIST_KEY_CFBundleDisplayName = "NewzTok Media";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -371,7 +373,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.9ctechlab.newztok;
+				PRODUCT_BUNDLE_IDENTIFIER = com.newztok.newztok2025;
 				PRODUCT_NAME = newztok_ios;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
@@ -428,6 +430,17 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers/react/nativemodule/core",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers/platform/ios",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-Fabric/React_Fabric.framework/Headers/react/renderer/components/view/platform/cxx",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-NativeModulesApple/React_NativeModulesApple.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers/react/renderer/graphics/platform/ios",
+				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
@@ -501,6 +514,17 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers/react/nativemodule/core",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers/platform/ios",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-Fabric/React_Fabric.framework/Headers/react/renderer/components/view/platform/cxx",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-NativeModulesApple/React_NativeModulesApple.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers/react/renderer/graphics/platform/ios",
+				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
