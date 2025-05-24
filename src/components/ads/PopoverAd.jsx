@@ -189,9 +189,25 @@ const PopoverAd = ({ onClose }) => {
     if (onClose) onClose();
   };
 
-  // If no ad data is available or we're still loading, don't show anything
+  // If no ad data is available or we're still loading, show advertisement text
   if (!adData && !loading) {
-    return null;
+    return (
+      <Modal statusBarTranslucent={true} transparent={true} visible={visible} animationType="fade">
+        <StatusBar translucent backgroundColor="rgba(0, 0, 0, 0.8)" />
+        <View style={styles.container}>
+          <View style={styles.adTextContainer}>
+            <Text style={styles.adText}>ADVERTISEMENT</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.closeButton} 
+            onPress={handleClose}
+            hitSlop={{ top: 20, right: 20, bottom: 20, left: 20 }}
+          >
+            <Text style={styles.closeButtonText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
   }
 
   return (
@@ -207,7 +223,7 @@ const PopoverAd = ({ onClose }) => {
             <Image 
               source={{ uri: adData.imageUrl }} 
               style={styles.fullScreenImage}
-              resizeMode="cover"
+              resizeMode="contain"
               onError={(e) => {
                 console.error('Error loading popover ad image:', e.nativeEvent.error);
                 handleClose(); // Close the modal if image fails to load
@@ -283,7 +299,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: WHITE,
     fontWeight: 'bold',
-  }
+  },
+  adTextContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adText: {
+    color: WHITE,
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 });
 
 export default PopoverAd; 

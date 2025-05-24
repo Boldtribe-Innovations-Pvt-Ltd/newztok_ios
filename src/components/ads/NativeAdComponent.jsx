@@ -250,9 +250,18 @@ const NativeAdComponent = ({ style }) => {
     }
   }, [adData, hasValidAdImage]);
   
-  // If no ad image is available, don't render anything
+  // If no ad image is available, show placeholder card
   if (!hasValidAdImage) {
-    return null;
+    return (
+      <View style={[styles.container, style]}>
+        <Text style={styles.adLabel}>ADVERTISEMENT</Text>
+        <View style={[styles.nativeAd, styles.placeholderAd]}>
+          <View style={styles.placeholderContent}>
+            <Text style={styles.placeholderText}>Advertisement</Text>
+          </View>
+        </View>
+      </View>
+    );
   }
   
   return (
@@ -285,35 +294,35 @@ const NativeAdComponent = ({ style }) => {
 
 const styles = StyleSheet.create({
   container: {
-    width: WIDTH * 0.5,
-    height: HEIGHT * 0.32,
-    marginVertical: HEIGHT * 0.01,
-    borderWidth: 2,
+    width: WIDTH * 0.4,
+    height: HEIGHT * 0.18,
+    marginVertical: HEIGHT * 0.006,
+    borderWidth: 1,
     borderColor: RED,
-    borderRadius: WIDTH * 0.02,
+    borderRadius: WIDTH * 0.015,
     overflow: 'hidden',
     backgroundColor: WHITE,
     alignSelf: 'center',
   },
   adLabel: {
-    fontSize: WIDTH * 0.022,
+    fontSize: WIDTH * 0.016,
     fontWeight: 'bold',
     color: RED,
     textAlign: 'center',
-    marginVertical: HEIGHT * 0.003,
+    marginVertical: HEIGHT * 0.001,
     fontFamily: POPPINSLIGHT,
   },
   nativeAd: {
     width: '100%',
-    padding: WIDTH * 0.01,
+    padding: WIDTH * 0.006,
     alignItems: 'center',
   },
   imageContainer: {
     width: '100%',
-    height: HEIGHT * 0.22,
+    height: HEIGHT * 0.12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: HEIGHT * 0.008,
+    marginBottom: HEIGHT * 0.004,
   },
   adImage: {
     width: '100%',
@@ -344,6 +353,21 @@ const styles = StyleSheet.create({
     fontSize: WIDTH * 0.018,
     fontWeight: 'bold',
     fontFamily: BOLDMONTSERRAT,
+  },
+  placeholderAd: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: HEIGHT * 0.14,
+  },
+  placeholderContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    fontSize: WIDTH * 0.03,
+    color: BLACK,
+    fontFamily: POPPINSLIGHT,
+    textAlign: 'center',
   },
 });
 
