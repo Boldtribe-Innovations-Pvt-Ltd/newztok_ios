@@ -219,7 +219,7 @@ export default ProfileScreen = ({ route, navigation }) => {
                 <Image source={PERSON} style={styles.guestImage} />
                 <Text style={styles.guestTitle}>Welcome to NewzTok</Text>
                 <Text style={styles.guestSubtitle}>
-                    Sign in to access your profile, save articles, and personalize your news experience
+                    Sign in to access your Profile, Notifications, and personalize your news experience
                 </Text>
                 <TouchableOpacity 
                     style={styles.loginButton}

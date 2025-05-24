@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput } from "react-native";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
@@ -218,6 +218,46 @@ const processUrl = (url) => {
     return url;
 };
 
+// Add SkeletonLoader component
+const SkeletonLoader = () => {
+    const fadeAnim = useRef(new Animated.Value(0.3)).current;
+
+    useEffect(() => {
+        const startAnimation = () => {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.7,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.3,
+                        duration: 800,
+                        useNativeDriver: true,
+                    })
+                ])
+            ).start();
+        };
+
+        startAnimation();
+        return () => fadeAnim.stopAnimation();
+    }, [fadeAnim]);
+
+    return (
+        <View style={styles.skeletonContainer}>
+            {[1, 2, 3].map((_, index) => (
+                <View key={index} style={styles.skeletonCard}>
+                    <Animated.View style={[styles.skeletonHeader, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonImage, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonTitle, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonText, { opacity: fadeAnim }]} />
+                </View>
+            ))}
+        </View>
+    );
+};
+
 export default function NationalNewzScreen({ navigation }) {
     const [reaction, setReaction] = useState({});
     const [followStatus, setFollowStatus] = useState({});
@@ -231,6 +271,7 @@ export default function NationalNewzScreen({ navigation }) {
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -270,9 +311,11 @@ export default function NationalNewzScreen({ navigation }) {
         }
     };
 
-    const fetchNewsData = async () => {
+    const fetchNewsData = async (isRefreshing = false) => {
         try {
-            setLoading(true);
+            if (!isRefreshing) {
+                setLoading(true);
+            }
             console.log('Fetching news from:', `${BASE_URL}api/news/category/national`);
             
             const response = await GETNETWORK(`${BASE_URL}api/news/category/national`);
@@ -492,22 +535,24 @@ export default function NationalNewzScreen({ navigation }) {
             );
             setNewsData([]);
         } finally {
-            setLoading(false);
+            if (!isRefreshing) {
+                setLoading(false);
+            }
+            setRefreshing(false);
         }
     };
 
-    // Fetch news data
-    useFocusEffect(
-        useCallback(() => {
-            fetchNewsData();
-            return () => {};
-        }, [])
-    );
-
-    // Add useEffect to check login status and initialize likes
+    // Replace useFocusEffect with useEffect
     useEffect(() => {
+        fetchNewsData();
         checkLoginStatus();
         initializeLikedPosts();
+    }, []);
+
+    // Add onRefresh handler
+    const onRefresh = React.useCallback(() => {
+        setRefreshing(true);
+        fetchNewsData(true);
     }, []);
 
     // Function to check login status
@@ -1282,6 +1327,9 @@ export default function NationalNewzScreen({ navigation }) {
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
                         contentContainerStyle={{ paddingBottom: 20 }}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        ListHeaderComponent={refreshing ? <SkeletonLoader /> : null}
                     />
                 )}
             </View>
@@ -1799,5 +1847,43 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         backgroundColor: GREY,
+    },
+    skeletonContainer: {
+        padding: WIDTH * 0.02,
+    },
+    skeletonCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        padding: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.015,
+        borderWidth: 1,
+        borderColor: BORDERCOLOR,
+        width: WIDTH * 0.9,
+        alignSelf: "center",
+    },
+    skeletonHeader: {
+        height: HEIGHT * 0.03,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonImage: {
+        height: HEIGHT * 0.16,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonTitle: {
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+        marginBottom: HEIGHT * 0.01,
+        width: '80%',
+    },
+    skeletonText: {
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+        width: '60%',
     },
 });

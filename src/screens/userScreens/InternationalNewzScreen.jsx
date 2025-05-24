@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput } from "react-native";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
@@ -218,6 +218,49 @@ const processUrl = (url) => {
     return url;
 };
 
+// Add SkeletonLoader component
+const SkeletonLoader = () => {
+    const fadeAnim = useRef(new Animated.Value(0.3)).current;
+
+    useEffect(() => {
+        const startAnimation = () => {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.7,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.3,
+                        duration: 800,
+                        useNativeDriver: true,
+                    })
+                ])
+            ).start();
+        };
+
+        startAnimation();
+        return () => fadeAnim.stopAnimation();
+    }, [fadeAnim]);
+
+    return (
+        <View style={styles.skeletonContainer}>
+            {[1, 2, 3].map((index) => (
+                <View key={index} style={styles.skeletonCard}>
+                    <View style={styles.skeletonHeader}>
+                        <Animated.View style={[styles.skeletonCircle, { opacity: fadeAnim }]} />
+                        <Animated.View style={[styles.skeletonText, { opacity: fadeAnim }]} />
+                    </View>
+                    <Animated.View style={[styles.skeletonImage, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonTitle, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonText, { opacity: fadeAnim }]} />
+                </View>
+            ))}
+        </View>
+    );
+};
+
 export default function InternationalNewzScreen({ navigation }) {
     const [reaction, setReaction] = useState({});
     const [followStatus, setFollowStatus] = useState({});
@@ -231,6 +274,7 @@ export default function InternationalNewzScreen({ navigation }) {
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -270,9 +314,11 @@ export default function InternationalNewzScreen({ navigation }) {
         }
     };
 
-    const fetchNewsData = async () => {
+    const fetchNewsData = async (isRefreshing = false) => {
         try {
-            setLoading(true);
+            if (!isRefreshing) {
+                setLoading(true);
+            }
             console.log('Fetching news from:', `${BASE_URL}api/news/category/international`);
             
             const response = await GETNETWORK(`${BASE_URL}api/news/category/international`);
@@ -492,22 +538,24 @@ export default function InternationalNewzScreen({ navigation }) {
             );
             setNewsData([]);
         } finally {
-            setLoading(false);
+            if (!isRefreshing) {
+                setLoading(false);
+            }
+            setRefreshing(false);
         }
     };
 
-    // Fetch news data
-    useFocusEffect(
-        useCallback(() => {
-            fetchNewsData();
-            return () => {};
-        }, [])
-    );
-
-    // Add useEffect to check login status and initialize likes
+    // Replace useFocusEffect with useEffect
     useEffect(() => {
+        fetchNewsData();
         checkLoginStatus();
         initializeLikedPosts();
+    }, []);
+
+    // Add onRefresh handler
+    const onRefresh = React.useCallback(() => {
+        setRefreshing(true);
+        fetchNewsData(true);
     }, []);
 
     // Function to check login status
@@ -1282,12 +1330,15 @@ export default function InternationalNewzScreen({ navigation }) {
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
                         contentContainerStyle={{ paddingBottom: 20 }}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        ListHeaderComponent={refreshing ? <SkeletonLoader /> : null}
                     />
                 )}
             </View>
             
             <MyLoader 
-            visible={loading}
+                visible={loading}
             />
             
             {/* Comment Modal */}
@@ -1799,5 +1850,51 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         backgroundColor: GREY,
+    },
+    // Add skeleton loader styles
+    skeletonContainer: {
+        padding: WIDTH * 0.02,
+    },
+    skeletonCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        padding: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.015,
+        borderWidth: 1,
+        borderColor: BORDERCOLOR,
+        width: WIDTH * 0.9,
+        alignSelf: 'center',
+    },
+    skeletonHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonCircle: {
+        width: WIDTH * 0.06,
+        height: WIDTH * 0.06,
+        borderRadius: WIDTH * 0.03,
+        backgroundColor: '#e1e9ee',
+        marginRight: WIDTH * 0.015,
+    },
+    skeletonImage: {
+        width: '100%',
+        height: HEIGHT * 0.16,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonTitle: {
+        width: '80%',
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonText: {
+        width: '60%',
+        height: HEIGHT * 0.015,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
     },
 });

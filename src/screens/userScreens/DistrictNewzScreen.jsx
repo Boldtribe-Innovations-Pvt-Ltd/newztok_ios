@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Modal, TextInput, Platform } from "react-native";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Modal, TextInput, Platform, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { DISLIKE, LIKE, PRESSDISLIKE, PRESSLIKE, SHARE, THREEDOTS, ACCOUNT, VERIFIED, RAMNABAMI, WHATSAPP, COMMENT, DOWNARROW } from "../../constants/imagePath";
@@ -226,6 +226,46 @@ const getStoredToken = async () => {
     }
 };
 
+// Add SkeletonLoader component before the DistrictNewzScreen component
+const SkeletonLoader = () => {
+    const fadeAnim = useRef(new Animated.Value(0.3)).current;
+
+    useEffect(() => {
+        const startAnimation = () => {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.7,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.3,
+                        duration: 800,
+                        useNativeDriver: true,
+                    })
+                ])
+            ).start();
+        };
+
+        startAnimation();
+        return () => fadeAnim.stopAnimation();
+    }, [fadeAnim]);
+
+    return (
+        <View style={styles.skeletonContainer}>
+            {[1, 2, 3].map((index) => (
+                <View key={index} style={styles.skeletonCard}>
+                    <Animated.View style={[styles.skeletonHeader, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonImage, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonTitle, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonText, { opacity: fadeAnim }]} />
+                </View>
+            ))}
+        </View>
+    );
+};
+
 export default DistrictNewzScreen = ({ navigation, route }) => {
     const { isLoggedIn: routeIsLoggedIn, userData } = route?.params || {};
     const [reaction, setReaction] = useState({});
@@ -248,7 +288,10 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
     // Fetch news for the selected state only
     const fetchStateNews = async (state = selectedState) => {
         try {
-            setLoading(true);
+            // Only set loading on initial load
+            if (!refreshing) {
+                setLoading(true);
+            }
             console.log('Fetching news for state:', state);
             
             // Get selected district from AsyncStorage
@@ -503,7 +546,10 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
             );
             setDistrictNewsData([]);
         } finally {
-            setLoading(false);
+            if (!refreshing) {
+                setLoading(false);
+            }
+            setRefreshing(false);
         }
     };
 
@@ -576,10 +622,10 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
     }, [selectedState, selectedDistrict]); // Add selectedDistrict as dependency
 
     // Handle refresh
-    const onRefresh = useCallback(() => {
+    const onRefresh = React.useCallback(() => {
         setRefreshing(true);
-        fetchStateNews(selectedState).then(() => setRefreshing(false));
-    }, [selectedState, selectedDistrict]); // Add selectedDistrict as dependency
+        fetchStateNews(selectedState);
+    }, [selectedState, selectedDistrict]);
 
     // Format time function
     const formatTime = (dateTimeString) => {
@@ -756,45 +802,42 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
     };
 
     // Fetch news data on screen focus
-    useFocusEffect(
-        useCallback(() => {
-            const refreshNews = async () => {
-                try {
-                    const location = await AsyncStorage.getItem('selectedLocation');
-                    const district = await AsyncStorage.getItem('selectedDistrict');
-                    
-                    console.log(`Screen focused: Location=${location}, District=${district}`);
-                    
-                    // Update local state to match AsyncStorage values
-                    if (district !== null && district !== selectedDistrict) {
-                        setSelectedDistrict(district);
-                    }
-                    
-                    const stateMapping = {
-                        'Bihar': 'bihar',
-                        'Jharkhand': 'jharkhand',
-                        'Uttar Pradesh': 'up'
-                    };
-                    
-                    let stateToUse = 'bihar';
-                    if (location && stateMapping[location]) {
-                        stateToUse = stateMapping[location];
-                        if (stateToUse !== selectedState) {
-                            setSelectedState(stateToUse);
-                        }
-                    }
-                    
-                    console.log(`Fetching news on focus: State=${stateToUse}, District=${district}`);
-                    await fetchStateNews(stateToUse);
-                } catch (error) {
-                    console.error('Error in focus effect:', error);
-                    await fetchStateNews('bihar');
+    useEffect(() => {
+        const refreshNews = async () => {
+            try {
+                const location = await AsyncStorage.getItem('selectedLocation');
+                const district = await AsyncStorage.getItem('selectedDistrict');
+                
+                console.log(`Screen focused: Location=${location}, District=${district}`);
+                
+                // Update local state to match AsyncStorage values
+                if (district !== null && district !== selectedDistrict) {
+                    setSelectedDistrict(district);
                 }
-            };
-            refreshNews();
-            return () => {};
-        }, [selectedState, selectedDistrict])
-    );
+                
+                const stateMapping = {
+                    'Bihar': 'bihar',
+                    'Jharkhand': 'jharkhand',
+                    'Uttar Pradesh': 'up'
+                };
+                
+                let stateToUse = 'bihar';
+                if (location && stateMapping[location]) {
+                    stateToUse = stateMapping[location];
+                    if (stateToUse !== selectedState) {
+                        setSelectedState(stateToUse);
+                    }
+                }
+                
+                console.log(`Fetching news on focus: State=${stateToUse}, District=${district}`);
+                await fetchStateNews(stateToUse);
+            } catch (error) {
+                console.error('Error in focus effect:', error);
+                await fetchStateNews('bihar');
+            }
+        };
+        refreshNews();
+    }, [selectedState, selectedDistrict]);
 
     // Update handleLike function
     const handleLike = async (id) => {
@@ -1521,8 +1564,9 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
                         contentContainerStyle={{ paddingBottom: 20 }}
-                        onRefresh={onRefresh}
                         refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        ListHeaderComponent={refreshing ? <SkeletonLoader /> : null}
                     />
                 )}
             </View>
@@ -2005,5 +2049,43 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         backgroundColor: GREY,
+    },
+    skeletonContainer: {
+        padding: WIDTH * 0.02,
+    },
+    skeletonCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        padding: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.015,
+        borderWidth: 1,
+        borderColor: BORDERCOLOR,
+        width: WIDTH * 0.9,
+        alignSelf: "center",
+    },
+    skeletonHeader: {
+        height: HEIGHT * 0.03,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonImage: {
+        height: HEIGHT * 0.16,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonTitle: {
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+        marginBottom: HEIGHT * 0.01,
+        width: '80%',
+    },
+    skeletonText: {
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+        width: '60%',
     },
 });

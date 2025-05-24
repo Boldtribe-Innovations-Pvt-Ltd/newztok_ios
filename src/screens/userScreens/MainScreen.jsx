@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
 import YoutubeIframe from "react-native-youtube-iframe";
 import { CustomBtn } from "../../components/commonComponents/CustomBtn";
-import { useFocusEffect } from "@react-navigation/native";
 import { BackHandler } from "react-native";
 import { BASE_URL } from "../../constants/url";
 console.log('Current BASE_URL:', BASE_URL);
@@ -218,6 +217,52 @@ const processUrl = (url) => {
     return url;
 };
 
+// Add NewsSkeleton component before the MainScreen component
+const NewsSkeleton = () => {
+    const fadeAnim = useRef(new Animated.Value(0.3)).current;
+
+    useEffect(() => {
+        const startAnimation = () => {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.7,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.3,
+                        duration: 800,
+                        useNativeDriver: true,
+                    })
+                ])
+            ).start();
+        };
+
+        startAnimation();
+        return () => fadeAnim.stopAnimation();
+    }, [fadeAnim]);
+
+    return (
+        <View style={styles.skeletonCard}>
+            <View style={styles.skeletonHeader}>
+                <Animated.View style={[styles.skeletonAvatar, { opacity: fadeAnim }]} />
+                <Animated.View style={[styles.skeletonName, { opacity: fadeAnim }]} />
+            </View>
+            <Animated.View style={[styles.skeletonImage, { opacity: fadeAnim }]} />
+            <View style={styles.skeletonContent}>
+                <Animated.View style={[styles.skeletonTitle, { opacity: fadeAnim }]} />
+                <Animated.View style={[styles.skeletonDate, { opacity: fadeAnim }]} />
+                <View style={styles.skeletonActions}>
+                    <Animated.View style={[styles.skeletonAction, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonAction, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonAction, { opacity: fadeAnim }]} />
+                </View>
+            </View>
+        </View>
+    );
+};
+
 export default function NMainScreenScreen({ navigation }) {
     const [reaction, setReaction] = useState({});
     const [followStatus, setFollowStatus] = useState({});
@@ -231,6 +276,7 @@ export default function NMainScreenScreen({ navigation }) {
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -270,12 +316,14 @@ export default function NMainScreenScreen({ navigation }) {
         }
     };
 
-    const fetchNewsData = async () => {
+    const fetchNewsData = async (isRefreshing = false) => {
         try {
-            setLoading(true);
-            console.log('Fetching news from:', `${BASE_URL}api/news/trending`);
+            if (!isRefreshing) {
+                setLoading(true);
+            }
+            console.log('Fetching news from:', `${BASE_URL}api/news/public`);
             
-            const response = await GETNETWORK(`${BASE_URL}api/news/trending`);
+            const response = await GETNETWORK(`${BASE_URL}api/news/public`);
             console.log('API Response:', response);
             
             if (response.success && response.data) {
@@ -492,22 +540,24 @@ export default function NMainScreenScreen({ navigation }) {
             );
             setNewsData([]);
         } finally {
-            setLoading(false);
+            if (!isRefreshing) {
+                setLoading(false);
+            }
+            setRefreshing(false);
         }
     };
 
-    // Fetch news data
-    useFocusEffect(
-        useCallback(() => {
-            fetchNewsData();
-            return () => {};
-        }, [])
-    );
-
-    // Add useEffect to check login status and initialize likes
+    // Replace useFocusEffect with useEffect
     useEffect(() => {
+        fetchNewsData();
         checkLoginStatus();
         initializeLikedPosts();
+    }, []);
+
+    // Add onRefresh handler
+    const onRefresh = React.useCallback(() => {
+        setRefreshing(true);
+        fetchNewsData(true);
     }, []);
 
     // Function to check login status
@@ -1416,12 +1466,23 @@ export default function NMainScreenScreen({ navigation }) {
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
                         contentContainerStyle={{ paddingBottom: 20 }}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        ListEmptyComponent={
+                            refreshing ? (
+                                <View>
+                                    {[1, 2, 3].map((_, index) => (
+                                        <NewsSkeleton key={index} />
+                                    ))}
+                                </View>
+                            ) : null
+                        }
                     />
                 )}
             </View>
             
             <MyLoader 
-            visible={loading}
+                visible={loading}
             />
             
             {/* Comment Modal */}
@@ -1933,5 +1994,70 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         backgroundColor: GREY,
+    },
+    skeletonCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        padding: WIDTH * 0.015,
+        marginVertical: HEIGHT * 0.01,
+        width: WIDTH * 0.9,
+        alignSelf: 'center',
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: BORDERCOLOR,
+    },
+    skeletonHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonAvatar: {
+        width: WIDTH * 0.06,
+        height: WIDTH * 0.06,
+        borderRadius: WIDTH * 0.03,
+        backgroundColor: '#e1e9ee',
+        marginRight: WIDTH * 0.015,
+    },
+    skeletonName: {
+        width: WIDTH * 0.2,
+        height: WIDTH * 0.035,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.005,
+    },
+    skeletonImage: {
+        width: '100%',
+        height: HEIGHT * 0.16,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonContent: {
+        padding: WIDTH * 0.01,
+    },
+    skeletonTitle: {
+        width: '90%',
+        height: WIDTH * 0.038,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.005,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonDate: {
+        width: '40%',
+        height: WIDTH * 0.03,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.005,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: HEIGHT * 0.01,
+    },
+    skeletonAction: {
+        width: WIDTH * 0.15,
+        height: WIDTH * 0.045,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.02,
     },
 });

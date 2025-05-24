@@ -108,6 +108,22 @@ export default NotificationScreen = () => {
                 userToken = await AsyncStorage.getItem('loginResponse');
             }
 
+            // If no token is found, redirect to login
+            if (!userToken) {
+                setToastMessage({
+                    visible: true,
+                    message: "Please login to view notifications",
+                    type: "error"
+                });
+                
+                setTimeout(() => {
+                    navigation.navigate("LoginSignup", { 
+                        returnScreen: "Notification"
+                    });
+                }, 1500);
+                return;
+            }
+
             console.log("Fetching notifications with token:", userToken ? "Token exists" : "No token");
             const notificationEndpoint = `${BASE_URL}api/notifications`;
             console.log("Notification endpoint:", notificationEndpoint);
@@ -120,6 +136,28 @@ export default NotificationScreen = () => {
             }
             
             if (!response.success) {
+                // Check if the error is due to authentication
+                if (response.message?.toLowerCase().includes("login") || 
+                    response.message?.toLowerCase().includes("unauthorized") ||
+                    response.message?.toLowerCase().includes("auth")) {
+                    
+                    // Clear invalid token
+                    await AsyncStorage.removeItem('userToken');
+                    await AsyncStorage.removeItem('loginResponse');
+                    
+                    setToastMessage({
+                        visible: true,
+                        message: "Session expired. Please login again",
+                        type: "error"
+                    });
+                    
+                    setTimeout(() => {
+                        navigation.navigate("LoginSignup", { 
+                            returnScreen: "Notification"
+                        });
+                    }, 1500);
+                    return;
+                }
                 throw new Error(`API Error: ${response.message || "Unknown error"}`);
             }
             
@@ -151,6 +189,30 @@ export default NotificationScreen = () => {
                 stack: error?.stack,
                 response: error?.response
             });
+
+            // Check if the error is due to authentication
+            if (error?.message?.toLowerCase().includes("login") || 
+                error?.message?.toLowerCase().includes("unauthorized") ||
+                error?.message?.toLowerCase().includes("auth")) {
+                
+                // Clear invalid token
+                await AsyncStorage.removeItem('userToken');
+                await AsyncStorage.removeItem('loginResponse');
+                
+                setToastMessage({
+                    visible: true,
+                    message: "Session expired. Please login again",
+                    type: "error"
+                });
+                
+                setTimeout(() => {
+                    navigation.navigate("LoginSignup", { 
+                        returnScreen: "Notification"
+                    });
+                }, 1500);
+                return;
+            }
+
             setToastMessage({
                 visible: true,
                 message: error?.message || "Error loading notifications",
@@ -159,7 +221,7 @@ export default NotificationScreen = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [navigation]);
 
     const checkLoginStatus = useCallback(async () => {
         try {

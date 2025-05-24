@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>newztok_ios</string>
+	<string>newztok</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -34,7 +34,11 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>We need access to your location to provide location-based news and content relevant to your area.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>We need access to your location to provide location-based news and content relevant to your area, even when the app is in the background.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photo library to allow you to upload and share images in the app.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Lora-Bold.ttf</string>
@@ -63,5 +67,17 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>DWARF_DSYM_FOLDER_PATH</key>
+	<string>${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}.debug.dylib</string>
+	<key>EXECUTABLE_PATH</key>
+	<string>$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)</string>
+	<key>GOOGLE_SERVICE_INFO</key>
+	<string>$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist</string>
+	<key>DSYM_INFO_PLIST</key>
+	<string>${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist</string>
+	<key>DSYM_DWARF_PATH</key>
+	<string>${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}</string>
+	<key>DSYM_PATH</key>
+	<string>${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}</string>
 </dict>
 </plist>

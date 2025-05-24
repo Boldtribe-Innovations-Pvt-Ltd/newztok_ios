@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { BLACK, RED, WHITE } from '../constants/color';
@@ -7,6 +7,7 @@ import ProfileScreen from "../screens/userScreens/ProfileScreen";
 import NotificationScreen from "../screens/userScreens/NotificationScreen";
 import SearchScreen from "../screens/userScreens/SearchScreen";
 import JournalistBottomTabNavigation from "./JournalistBottomTabNavigation";
+import { getObjByKey, getStringByKey } from '../utils/Storage';
 
 const Tab = createBottomTabNavigator();
 
@@ -16,7 +17,32 @@ const Tab = createBottomTabNavigator();
 
 // Bottom Tab Navigation For Regular Users
 export const UserBottomTabNavigation = () => {
-    return (
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    useEffect(() => {
+        checkLoginStatus();
+    }, []);
+
+    const checkLoginStatus = async () => {
+        try {
+            // Try to get token from AsyncStorage
+            let userToken = await getStringByKey('userToken');
+            if (!userToken) {
+                const user = await getObjByKey('user');
+                    userToken = user?.token;
+            }
+            if (!userToken) {
+                userToken = await getStringByKey('loginResponse');
+            }
+            
+            setIsLoggedIn(!!userToken);
+        } catch (error) {
+            console.error("Error checking login status:", error);
+            setIsLoggedIn(false);
+        }
+    };
+        
+        return (
         <Tab.Navigator
             screenOptions={{
                 headerShown: false,
@@ -35,7 +61,7 @@ export const UserBottomTabNavigation = () => {
                     tabBarLabel: "Home",
                     tabBarIcon: ({ focused, color }) => (
                         <MaterialCommunityIcons
-                            name="home"
+                            name="home-variant-outline"
                             color={color}
                             size={26}
                         />
@@ -58,20 +84,22 @@ export const UserBottomTabNavigation = () => {
                 }}
             />
 
-            <Tab.Screen
-                name="Notification"
-                component={NotificationScreen}
-                options={{
-                    tabBarLabel: "Notification",
-                    tabBarIcon: ({ focused, color }) => (
-                        <MaterialCommunityIcons
-                            name="bell-outline"
-                            color={color}
-                            size={26}
-                        />
-                    ),
-                }}
-            />
+            {isLoggedIn && (
+                <Tab.Screen
+                    name="Notification"
+                    component={NotificationScreen}
+                    options={{
+                        tabBarLabel: "Notification",
+                        tabBarIcon: ({ focused, color }) => (
+                            <MaterialCommunityIcons
+                                name="bell-outline"
+                                color={color}
+                                size={26}
+                            />
+                        ),
+                    }}
+                />
+            )}
 
             <Tab.Screen
                 name="Profile"

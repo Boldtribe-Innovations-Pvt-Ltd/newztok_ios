@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput } from "react-native";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
@@ -218,6 +218,49 @@ const processUrl = (url) => {
     return url;
 };
 
+// Add SkeletonLoader component
+const SkeletonLoader = () => {
+    const fadeAnim = useRef(new Animated.Value(0.3)).current;
+
+    useEffect(() => {
+        const startAnimation = () => {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.7,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.3,
+                        duration: 800,
+                        useNativeDriver: true,
+                    })
+                ])
+            ).start();
+        };
+
+        startAnimation();
+        return () => fadeAnim.stopAnimation();
+    }, [fadeAnim]);
+
+    return (
+        <View style={styles.skeletonContainer}>
+            <View style={styles.skeletonCard}>
+                <View style={styles.skeletonHeader}>
+                    <Animated.View style={[styles.skeletonCircle, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonText, { opacity: fadeAnim }]} />
+                </View>
+                <Animated.View style={[styles.skeletonImage, { opacity: fadeAnim }]} />
+                <View style={styles.skeletonContent}>
+                    <Animated.View style={[styles.skeletonTitle, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonTime, { opacity: fadeAnim }]} />
+                </View>
+            </View>
+        </View>
+    );
+};
+
 export default function EntertainmentNewzScreen({ navigation }) {
     const [reaction, setReaction] = useState({});
     const [followStatus, setFollowStatus] = useState({});
@@ -231,6 +274,7 @@ export default function EntertainmentNewzScreen({ navigation }) {
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -272,7 +316,11 @@ export default function EntertainmentNewzScreen({ navigation }) {
 
     const fetchNewsData = async () => {
         try {
-            setLoading(true);
+            // Only set loading if it's a refresh operation
+            if (refreshing) {
+                setLoading(true);
+            }
+            
             console.log('Fetching news from:', `${BASE_URL}api/news/category/entertainment`);
             
             const response = await GETNETWORK(`${BASE_URL}api/news/category/entertainment`);
@@ -493,16 +541,20 @@ export default function EntertainmentNewzScreen({ navigation }) {
             setNewsData([]);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
-    // Fetch news data
-    useFocusEffect(
-        useCallback(() => {
-            fetchNewsData();
-            return () => {};
-        }, [])
-    );
+    // Replace useFocusEffect with useEffect
+    useEffect(() => {
+        fetchNewsData();
+    }, []);
+
+    // Add onRefresh handler
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchNewsData();
+    };
 
     // Add useEffect to check login status and initialize likes
     useEffect(() => {
@@ -1282,12 +1334,21 @@ export default function EntertainmentNewzScreen({ navigation }) {
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
                         contentContainerStyle={{ paddingBottom: 20 }}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        ListHeaderComponent={refreshing ? (
+                            <View style={styles.skeletonContainer}>
+                                <SkeletonLoader />
+                                <SkeletonLoader />
+                                <SkeletonLoader />
+                            </View>
+                        ) : null}
                     />
                 )}
             </View>
             
             <MyLoader 
-            visible={loading}
+                visible={loading}
             />
             
             {/* Comment Modal */}
@@ -1799,5 +1860,60 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         backgroundColor: GREY,
+    },
+    skeletonContainer: {
+        padding: WIDTH * 0.02,
+        alignItems: 'center',
+    },
+    skeletonCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        padding: WIDTH * 0.02,
+        width: WIDTH * 0.9,
+        maxHeight: HEIGHT * 0.25,
+        overflow: 'hidden',
+    },
+    skeletonHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonCircle: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        backgroundColor: GREY,
+        marginRight: WIDTH * 0.02,
+    },
+    skeletonText: {
+        flex: 1,
+        height: HEIGHT * 0.03,
+        backgroundColor: GREY,
+        borderRadius: WIDTH * 0.015,
+    },
+    skeletonImage: {
+        width: '100%',
+        height: HEIGHT * 0.16,
+        backgroundColor: GREY,
+        borderRadius: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: HEIGHT * 0.01,
+    },
+    skeletonTitle: {
+        flex: 1,
+        height: HEIGHT * 0.03,
+        backgroundColor: GREY,
+        borderRadius: WIDTH * 0.015,
+    },
+    skeletonTime: {
+        width: WIDTH * 0.15,
+        height: HEIGHT * 0.03,
+        backgroundColor: GREY,
+        borderRadius: WIDTH * 0.015,
     },
 });

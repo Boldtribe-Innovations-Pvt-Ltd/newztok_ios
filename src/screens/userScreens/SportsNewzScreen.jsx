@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput } from "react-native";
+import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
@@ -218,6 +218,49 @@ const processUrl = (url) => {
     return url;
 };
 
+// Add SkeletonLoader component
+const SkeletonLoader = () => {
+    const fadeAnim = useRef(new Animated.Value(0.3)).current;
+
+    useEffect(() => {
+        const startAnimation = () => {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.7,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(fadeAnim, {
+                        toValue: 0.3,
+                        duration: 800,
+                        useNativeDriver: true,
+                    })
+                ])
+            ).start();
+        };
+
+        startAnimation();
+        return () => fadeAnim.stopAnimation();
+    }, [fadeAnim]);
+
+    return (
+        <View style={styles.skeletonContainer}>
+            <View style={styles.skeletonCard}>
+                <View style={styles.skeletonHeader}>
+                    <Animated.View style={[styles.skeletonCircle, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonText, { opacity: fadeAnim }]} />
+                </View>
+                <Animated.View style={[styles.skeletonImage, { opacity: fadeAnim }]} />
+                <View style={styles.skeletonContent}>
+                    <Animated.View style={[styles.skeletonTitle, { opacity: fadeAnim }]} />
+                    <Animated.View style={[styles.skeletonTime, { opacity: fadeAnim }]} />
+                </View>
+            </View>
+        </View>
+    );
+};
+
 export default function SportsNewzScreen({ navigation }) {
     const [reaction, setReaction] = useState({});
     const [followStatus, setFollowStatus] = useState({});
@@ -231,6 +274,7 @@ export default function SportsNewzScreen({ navigation }) {
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -272,7 +316,11 @@ export default function SportsNewzScreen({ navigation }) {
 
     const fetchNewsData = async () => {
         try {
-            setLoading(true);
+            // Only set loading if it's a refresh operation
+            if (refreshing) {
+                setLoading(true);
+            }
+            
             console.log('Fetching news from:', `${BASE_URL}api/news/category/sports`);
             
             const response = await GETNETWORK(`${BASE_URL}api/news/category/sports`);
@@ -421,12 +469,6 @@ export default function SportsNewzScreen({ navigation }) {
                 // Wait for all Promise.all to resolve the like count fetches
                 const resolvedData = await Promise.all(transformedData);
                 
-                // Log some of the dates to debug
-                console.log('Sample of news items before sorting:');
-                resolvedData.slice(0, 3).forEach(item => {
-                    console.log(`Title: ${item.title.substring(0, 20)}..., Created: ${item.createdAt}, Updated: ${item.updatedAt}, Raw: ${item.raw_date}, Likes: ${item.likeCount}`);
-                });
-
                 // Sort by creation date first (newest first)
                 const sortedData = resolvedData.sort((a, b) => {
                     // Try parsing dates in different formats
@@ -493,16 +535,21 @@ export default function SportsNewzScreen({ navigation }) {
             setNewsData([]);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
-    // Fetch news data
-    useFocusEffect(
-        useCallback(() => {
-            fetchNewsData();
-            return () => {};
-        }, [])
-    );
+    // Replace useFocusEffect with useEffect
+    useEffect(() => {
+        fetchNewsData();
+    }, []);
+
+    // Add onRefresh handler
+    const onRefresh = () => {
+        setRefreshing(true);
+        setLoading(true); // Add loading state for skeleton
+        fetchNewsData();
+    };
 
     // Add useEffect to check login status and initialize likes
     useEffect(() => {
@@ -1282,12 +1329,21 @@ export default function SportsNewzScreen({ navigation }) {
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
                         contentContainerStyle={{ paddingBottom: 20 }}
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        ListHeaderComponent={refreshing ? (
+                            <View style={styles.skeletonContainer}>
+                                <SkeletonLoader />
+                                <SkeletonLoader />
+                                <SkeletonLoader />
+                            </View>
+                        ) : null}
                     />
                 )}
             </View>
             
             <MyLoader 
-            visible={loading}
+                visible={loading}
             />
             
             {/* Comment Modal */}
@@ -1799,5 +1855,58 @@ const styles = StyleSheet.create({
     },
     disabledButton: {
         backgroundColor: GREY,
+    },
+    skeletonContainer: {
+        padding: WIDTH * 0.02,
+    },
+    skeletonCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        padding: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.015,
+        borderWidth: 1,
+        borderColor: BORDERCOLOR,
+    },
+    skeletonHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonCircle: {
+        width: WIDTH * 0.06,
+        height: WIDTH * 0.06,
+        borderRadius: WIDTH * 0.03,
+        backgroundColor: '#e1e9ee',
+        marginRight: WIDTH * 0.015,
+    },
+    skeletonText: {
+        width: WIDTH * 0.2,
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+    },
+    skeletonImage: {
+        width: '100%',
+        height: HEIGHT * 0.16,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.015,
+        marginBottom: HEIGHT * 0.01,
+    },
+    skeletonContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    skeletonTitle: {
+        width: '70%',
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
+    },
+    skeletonTime: {
+        width: '20%',
+        height: HEIGHT * 0.02,
+        backgroundColor: '#e1e9ee',
+        borderRadius: WIDTH * 0.01,
     },
 });
