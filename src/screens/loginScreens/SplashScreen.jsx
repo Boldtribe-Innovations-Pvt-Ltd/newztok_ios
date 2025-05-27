@@ -438,7 +438,7 @@ export default SplashScreen = ({ navigation }) => {
           <Animated.Text
             style={[styles.bottomText, { opacity: textOpacity }]}
           >
-            सिर्फ सच
+            आपकी खबर, हमारी जिम्मेदारी
           </Animated.Text>
         </View>
       </View>
