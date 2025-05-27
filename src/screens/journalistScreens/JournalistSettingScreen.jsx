@@ -313,7 +313,7 @@ export default JournalistSettingScreen = ({ navigation }) => {
             <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
                 <View style={styles.innerContainer}>
                 {/* Notification Row */}
-                <View style={styles.rowContainer}>
+                {/* <View style={styles.rowContainer}>
                     <Text style={styles.text}>Notification</Text>
                     <TouchableOpacity
                         style={[styles.customSwitch, isNotificationsOn && styles.switchOn]}
@@ -326,24 +326,23 @@ export default JournalistSettingScreen = ({ navigation }) => {
                             ]}
                         />
                     </TouchableOpacity>
-                </View>
+                </View> */}
 
                 {/* Dark Mode Row */}
-                <View style={styles.rowContainer}>
+                {/* <View style={styles.rowContainer}>
                     <Text style={styles.text}>Dark Mode</Text>
                     <TouchableOpacity
                         style={[styles.customSwitch, isDarkMode && styles.switchOn]}
                         onPress={() => setIsDarkMode(!isDarkMode)}
                     >
-                        {/* Sun or Moon Icon */}
                         <View style={[styles.switchCircle, isDarkMode ? styles.sliderRight : styles.sliderLeft]}>
                             <Image source={isDarkMode ? MOON : SUN} style={styles.icon} />
                         </View>
                     </TouchableOpacity>
-                </View>
+                </View> */}
 
                 {/* Horizontal Line */}
-                <View style={styles.divider} />
+                {/* <View style={styles.divider} /> */}
 
                 {/* Terms and Conditions */}
                     <TouchableOpacity style={styles.rowContainer} onPress={() => setShowTermsModal(true)}>
@@ -358,22 +357,22 @@ export default JournalistSettingScreen = ({ navigation }) => {
                 </TouchableOpacity>
 
                 {/* Supporting Mail */}
-                <TouchableOpacity style={styles.rowContainer} onPress={openSupportMail}>
+                {/* <TouchableOpacity style={styles.rowContainer} onPress={openSupportMail}>
                     <Text style={styles.text}>Supporting Mail</Text>
                         <Image source={RIGHTARROW} style={styles.icon} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
                 {/* Rate This App */}
-                <TouchableOpacity style={styles.rowContainer}>
+                {/* <TouchableOpacity style={styles.rowContainer}>
                     <Text style={styles.text}>Rate This App</Text>
                         <Image source={RIGHTARROW} style={styles.icon} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
                 {/* App Version */}
-                <View style={styles.rowContainer}>
+                {/* <View style={styles.rowContainer}>
                     <Text style={styles.text}>App Version</Text>
                     <Text style={styles.version}>V0.1</Text>
-                </View>
+                </View> */}
 
                     {/* Horizontal Line */}
                     <View style={styles.divider} />

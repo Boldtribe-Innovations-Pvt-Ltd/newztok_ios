@@ -315,7 +315,7 @@ export default SettingsScreen = ({ navigation }) => {
             {/* Main Container */}
             <View style={styles.container}>
                 {/* Notification Row */}
-                <View style={styles.rowContainer}>
+                {/* <View style={styles.rowContainer}>
                     <Text style={styles.text}>Notification</Text>
                     <TouchableOpacity
                         style={[styles.customSwitch, isNotificationsOn && styles.switchOn]}
@@ -328,30 +328,29 @@ export default SettingsScreen = ({ navigation }) => {
                             ]}
                         />
                     </TouchableOpacity>
-                </View>
+                </View> */}
 
                 {/* Dark Mode Row */}
-                <View style={styles.rowContainer}>
+                {/* <View style={styles.rowContainer}>
                     <Text style={styles.text}>Dark Mode</Text>
                     <TouchableOpacity
                         style={[styles.customSwitch, isDarkMode && styles.switchOn]}
                         onPress={() => setIsDarkMode(!isDarkMode)}
                     >
-                        {/* Sun or Moon Icon */}
                         <View style={[styles.switchCircle, isDarkMode ? styles.sliderRight : styles.sliderLeft]}>
                             <Image source={isDarkMode ? MOON : SUN} style={styles.icon} />
                         </View>
                     </TouchableOpacity>
-                </View>
+                </View> */}
 
                 {/* Block Account Row */}
-                <TouchableOpacity style={styles.rowContainer}>
+                {/* <TouchableOpacity style={styles.rowContainer}>
                     <Text style={styles.text}>Block Account</Text>
                     <Image source={RIGHTARROW} style={styles.icon} />
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
                 {/* Horizontal Line */}
-                <View style={styles.divider} />
+                {/* <View style={styles.divider} /> */}
 
                 {/* Terms and Conditions */}
                 <TouchableOpacity style={styles.rowContainer} onPress={() => setShowTermsModal(true)}>
@@ -366,25 +365,26 @@ export default SettingsScreen = ({ navigation }) => {
                 </TouchableOpacity>
 
                 {/* Supporting Mail */}
-                <TouchableOpacity style={styles.rowContainer} onPress={openSupportMail}>
+                {/* <TouchableOpacity style={styles.rowContainer} onPress={openSupportMail}>
                     <Text style={styles.text}>Supporting Mail</Text>
-                </TouchableOpacity>
+                    <Text style={styles.email}>support@boldtribe.in</Text>
+                </TouchableOpacity> */}
 
                 {/* Rate This App */}
-                <TouchableOpacity style={styles.rowContainer}>
+                {/* <TouchableOpacity style={styles.rowContainer}>
                     <Text style={styles.text}>Rate This App</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
                 {/* Deactivate Account */}
-                <TouchableOpacity style={styles.rowContainer}>
+                {/* <TouchableOpacity style={styles.rowContainer}>
                     <Text style={styles.text}>Deactivate Account</Text>
-                </TouchableOpacity>
+                </TouchableOpacity> */}
 
                 {/* App Version */}
-                <View style={styles.rowContainer}>
+                {/* <View style={styles.rowContainer}>
                     <Text style={styles.text}>App Version</Text>
                     <Text style={styles.version}>V0.1</Text>
-                </View>
+                </View> */}
 
                 {/* Logout */}
                 <TouchableOpacity style={styles.rowContainer} onPress={handleLogout}>
