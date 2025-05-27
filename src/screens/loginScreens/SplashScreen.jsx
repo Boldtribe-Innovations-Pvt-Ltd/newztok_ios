@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, StyleSheet, View, Platform, Alert } from "react-native";
+import { Animated, PermissionsAndroid, StyleSheet, View, Text, Platform, Alert } from "react-native";
 import LinearGradient from "react-native-linear-gradient";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LOGO2 } from "../../constants/imagePath";
@@ -13,69 +13,228 @@ export default SplashScreen = ({ navigation }) => {
 
   const requestUserPermission = async () => {
     try {
-      console.log('🔔 [SplashScreen] Starting permission request...');
-      
       const authStatus = await messaging().requestPermission();
-      console.log('🔔 [SplashScreen] Authorization status:', authStatus);
-      
       const enabled =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
       
       if (enabled) {
-        console.log('✅ [SplashScreen] Notification permissions granted');
+        console.log('✅ Notification permissions granted');
         return true;
       } else {
-        console.log('❌ [SplashScreen] Notification permissions not granted');
+        console.log('❌ Notification permissions not granted');
         return false;
       }
     } catch (error) {
-      console.error('❌ [SplashScreen] Error requesting notification permissions:', error);
+      console.error('Error requesting notification permissions:', error);
       return false;
     }
   };
 
   const initializeNotifications = async () => {
     try {
-      console.log('🚀 [SplashScreen] Starting notification initialization...');
-      
       // Request notification permissions
       const hasPermission = await requestUserPermission();
-      console.log('🔑 [SplashScreen] Permission status:', hasPermission);
       
       if (hasPermission) {
-        console.log('✅ [SplashScreen] Setting up notification listeners...');
-        
         // Get and store FCM token
-        console.log('🔑 [SplashScreen] Getting FCM token...');
         const fcmToken = await messaging().getToken();
-        console.log('🔑 [SplashScreen] FCM token:', fcmToken);
         
         if (fcmToken) {
-          console.log('✅ [SplashScreen] FCM token obtained:', fcmToken);
           await AsyncStorage.setItem('fcmToken', fcmToken);
-          await AsyncStorage.setItem('fcmtoken', fcmToken); // For compatibility
-          
-          // Log stored token for verification
-          const storedToken = await AsyncStorage.getItem('fcmToken');
-          console.log('🔍 [SplashScreen] Stored FCM token:', storedToken);
+          await AsyncStorage.setItem('fcmtoken', fcmToken);
 
           // Set up token refresh listener
           messaging().onTokenRefresh(async newToken => {
-            console.log('🔄 [SplashScreen] FCM token refreshed:', newToken);
             await AsyncStorage.setItem('fcmToken', newToken);
             await AsyncStorage.setItem('fcmtoken', newToken);
           });
 
-          // Set up notification opened handler
-          messaging().onNotificationOpenedApp(remoteMessage => {
+          // Handle foreground messages
+          const unsubscribe = messaging().onMessage(async remoteMessage => {
             try {
-              console.log('📬 [SplashScreen] App opened from notification:', JSON.stringify(remoteMessage, null, 2));
-              if (remoteMessage.from === '/topics/news_updates') {
-                console.log('📬 [SplashScreen] App opened from news update notification');
-              }
+              console.log('📱 [Topic Notification] Received foreground message:', {
+                topic: remoteMessage.from,
+                title: remoteMessage.notification?.title,
+                body: remoteMessage.notification?.body,
+                data: remoteMessage.data
+              });
+
+              // Create notification data with proper structure
+              const notificationData = {
+                ...remoteMessage,
+                notification: {
+                  ...remoteMessage.notification,
+                  android: {
+                    ...remoteMessage.notification?.android,
+                    channelId: 'newztok-channel-important',
+                    priority: 'high',
+                    sound: 'default',
+                    importance: 4,
+                    smallIcon: '@mipmap/ic_launcher',
+                    largeIcon: '@mipmap/ic_launcher',
+                    color: '#D21008',
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                    tag: 'com.newztok.newztok2025'
+                  },
+                  ios: {
+                    ...remoteMessage.notification?.ios,
+                    sound: 'default',
+                    badge: 1,
+                    threadId: 'com.newztok.newztok2025'
+                  }
+                },
+                data: {
+                  ...remoteMessage.data,
+                  click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                  collapse_key: 'com.newztok.newztok2025'
+                }
+              };
+
+              // Show notification using Alert for foreground
+              Alert.alert(
+                notificationData.notification?.title ?? 'News Update',
+                notificationData.notification?.body ?? '',
+                [
+                  {
+                    text: 'View',
+                    onPress: () => {
+                      console.log('📱 [Topic Notification] Notification viewed');
+                      // Handle notification click
+                    }
+                  },
+                  {
+                    text: 'OK',
+                    style: 'cancel'
+                  }
+                ]
+              );
             } catch (error) {
-              console.error('❌ [SplashScreen] Error handling opened notification:', error);
+              console.error('❌ [Topic Notification] Error handling notification:', error);
+            }
+          });
+
+          // Set up background message handler
+          messaging().setBackgroundMessageHandler(async remoteMessage => {
+            try {
+              console.log('📱 [Topic Notification] Received background message:', {
+                topic: remoteMessage.from,
+                title: remoteMessage.notification?.title,
+                body: remoteMessage.notification?.body,
+                data: remoteMessage.data
+              });
+
+              // Create notification data with proper structure for background
+              const notificationData = {
+                ...remoteMessage,
+                notification: {
+                  ...remoteMessage.notification,
+                  android: {
+                    ...remoteMessage.notification?.android,
+                    channelId: 'newztok-channel-important',
+                    priority: 'high',
+                    sound: 'default',
+                    importance: 4,
+                    smallIcon: '@mipmap/ic_launcher',
+                    largeIcon: '@mipmap/ic_launcher',
+                    color: '#D21008',
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                    tag: 'com.newztok.newztok2025'
+                  },
+                  ios: {
+                    ...remoteMessage.notification?.ios,
+                    sound: 'default',
+                    badge: 1,
+                    threadId: 'com.newztok.newztok2025'
+                  }
+                },
+                data: {
+                  ...remoteMessage.data,
+                  click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                  collapse_key: 'com.newztok.newztok2025'
+                }
+              };
+
+              // Return the notification data for background processing
+              return Promise.resolve(notificationData);
+            } catch (error) {
+              console.error('❌ [Topic Notification] Error handling background notification:', error);
+              return Promise.reject(error);
+            }
+          });
+
+          // Initialize notification channel for Android
+          if (Platform.OS === 'android') {
+            await messaging().android.createChannel({
+              id: 'newztok-channel-important',
+              name: 'NewzTok Important Alerts',
+              importance: 4,
+              vibration: true,
+              sound: 'default',
+              enableVibration: true,
+              enableLights: true,
+              lightColor: '#D21008',
+              showBadge: true,
+              description: 'Important news updates and notifications',
+              badge: true
+            });
+          }
+
+          // Subscribe to default topics with error handling
+          try {
+            console.log('📢 [Topic Subscription] Subscribing to default topics...');
+            await messaging().subscribeToTopic('news_updates');
+            console.log('✅ [Topic Subscription] Subscribed to news_updates');
+            await messaging().subscribeToTopic('news_approvals');
+            console.log('✅ [Topic Subscription] Subscribed to news_approvals');
+
+            // Get user data for topic subscription
+            const userData = await getObjByKey('user');
+            
+            if (userData) {
+              console.log('👤 [Topic Subscription] User preferences found:', {
+                state: userData.state,
+                district: userData.district,
+                categories: userData.categories
+              });
+
+              // Subscribe to topics based on user preferences
+              if (userData.state) {
+                const stateTopic = `state_${userData.state.toLowerCase().replace(/\s+/g, '_')}`;
+                await messaging().subscribeToTopic(stateTopic);
+                console.log('✅ [Topic Subscription] Subscribed to state topic:', stateTopic);
+              }
+              
+              if (userData.district) {
+                const districtTopic = `district_${userData.district.toLowerCase().replace(/\s+/g, '_')}`;
+                await messaging().subscribeToTopic(districtTopic);
+                console.log('✅ [Topic Subscription] Subscribed to district topic:', districtTopic);
+              }
+              
+              if (userData.categories?.length) {
+                for (const category of userData.categories) {
+                  const categoryTopic = `category_${category.toLowerCase().replace(/\s+/g, '_')}`;
+                  await messaging().subscribeToTopic(categoryTopic);
+                  console.log('✅ [Topic Subscription] Subscribed to category topic:', categoryTopic);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('❌ [Topic Subscription] Error subscribing to topics:', error);
+          }
+
+          // Add notification opened handler with navigation
+          messaging().onNotificationOpenedApp(remoteMessage => {
+            console.log('📱 [Topic Notification] App opened from notification:', {
+              topic: remoteMessage.from,
+              title: remoteMessage.notification?.title,
+              body: remoteMessage.notification?.body,
+              data: remoteMessage.data
+            });
+
+            // Handle navigation based on notification data
+            if (remoteMessage.data?.screen) {
+              navigation.navigate(remoteMessage.data.screen, remoteMessage.data.params);
             }
           });
 
@@ -84,202 +243,58 @@ export default SplashScreen = ({ navigation }) => {
             .getInitialNotification()
             .then(remoteMessage => {
               if (remoteMessage) {
-                console.log('📬 [SplashScreen] App opened from quit state with notification:', JSON.stringify(remoteMessage, null, 2));
+                console.log('📱 [Topic Notification] App opened from quit state with notification:', {
+                  topic: remoteMessage.from,
+                  title: remoteMessage.notification?.title,
+                  body: remoteMessage.notification?.body,
+                  data: remoteMessage.data
+                });
+
+                // Handle navigation based on notification data
+                if (remoteMessage.data?.screen) {
+                  navigation.navigate(remoteMessage.data.screen, remoteMessage.data.params);
+                }
               }
-            })
-            .catch(error => {
-              console.error('❌ [SplashScreen] Error getting initial notification:', error);
             });
-        } else {
-          console.error('❌ [SplashScreen] Failed to get FCM token');
+
+          return unsubscribe;
         }
-
-        // Handle foreground messages with enhanced logging
-        const unsubscribe = messaging().onMessage(async remoteMessage => {
-          try {
-            console.log('📲 [SplashScreen] Foreground FCM received:', JSON.stringify(remoteMessage, null, 2));
-            console.log('📲 [SplashScreen] Message topic:', remoteMessage.from);
-            console.log('📲 [SplashScreen] Message data:', remoteMessage.data);
-            console.log('📲 [SplashScreen] Message notification:', remoteMessage.notification);
-            
-            // Check if the notification is from news_updates topic
-            if (remoteMessage.from === '/topics/news_updates') {
-              console.log('📰 [SplashScreen] News Update notification received');
-              
-              // Log raw message first with the same structure as Android
-              const notificationData = {
-                notification: remoteMessage.notification || {},
-                originalPriority: remoteMessage.originalPriority || 2,
-                priority: remoteMessage.priority || 2,
-                sentTime: remoteMessage.sentTime || Date.now(),
-                data: remoteMessage.data || {},
-                from: remoteMessage.from,
-                messageId: remoteMessage.messageId,
-                ttl: remoteMessage.ttl || 2419200,
-                authKey: 'LA3YFLZ4Z5'  // iOS auth key
-              };
-
-              // Log each part of the notification data separately
-              console.log('📬 [SplashScreen] Notification object:', notificationData.notification);
-              console.log('📬 [SplashScreen] Data object:', notificationData.data);
-              console.log('📬 [SplashScreen] Message details:', {
-                from: notificationData.from,
-                messageId: notificationData.messageId,
-                sentTime: notificationData.sentTime,
-                ttl: notificationData.ttl,
-                authKey: notificationData.authKey
-              });
-
-              // Show alert instead of using messaging().ios.showNotification
-              Alert.alert(
-                remoteMessage.notification?.title ?? 'News Update',
-                remoteMessage.notification?.body ?? '',
-                [
-                  {
-                    text: 'OK',
-                    onPress: () => console.log('✅ [SplashScreen] Alert acknowledged')
-                  }
-                ]
-              );
-              
-              console.log('✅ [SplashScreen] News update notification shown successfully');
-            } else {
-              console.log('⚠️ [SplashScreen] Received notification from different topic:', remoteMessage.from);
-            }
-          } catch (error) {
-            console.error('❌ [SplashScreen] Error handling news update notification:', error);
-            console.error('Error details:', error.message);
-            console.error('Error stack:', error.stack);
-            console.error('Failed remoteMessage:', JSON.stringify(remoteMessage, null, 2));
-          }
-        });
-
-        // Set up background message handler with enhanced logging
-        messaging().setBackgroundMessageHandler(async remoteMessage => {
-          try {
-            console.log('📬 [SplashScreen] Background message received:', JSON.stringify(remoteMessage, null, 2));
-            if (remoteMessage.from === '/topics/news_updates') {
-              console.log('📬 [SplashScreen] Background news update notification received:', {
-                notification: remoteMessage.notification,
-                data: remoteMessage.data,
-                from: remoteMessage.from,
-                messageId: remoteMessage.messageId
-              });
-            }
-          } catch (error) {
-            console.error('❌ [SplashScreen] Error handling background news update:', error);
-          }
-        });
-
-        // Get user preferences for topic subscription
-        console.log('📢 [SplashScreen] Setting up topic subscriptions...');
-        const userData = await getObjByKey('user');
-        console.log('👤 [SplashScreen] User data for topic subscription:', userData);
-        
-        try {
-          // Always subscribe to news_updates topic first
-          console.log('📢 [SplashScreen] Subscribing to default topic: news_updates');
-          await messaging().subscribeToTopic('news_updates');
-          console.log('✅ [SplashScreen] Successfully subscribed to news_updates topic');
-
-          // Subscribe to news_approvals topic
-          console.log('📢 [SplashScreen] Subscribing to news approval topic');
-          await messaging().subscribeToTopic('news_approvals');
-          console.log('✅ [SplashScreen] Successfully subscribed to news_approvals topic');
-
-          if (userData) {
-            // Subscribe to topics based on user preferences
-            if (userData.state) {
-              const stateTopic = `state_${userData.state.toLowerCase().replace(/\s+/g, '_')}`;
-              console.log('📢 [SplashScreen] Subscribing to state topic:', stateTopic);
-              await messaging().subscribeToTopic(stateTopic);
-              console.log('✅ [SplashScreen] Successfully subscribed to state topic:', stateTopic);
-            }
-            
-            if (userData.district) {
-              const districtTopic = `district_${userData.district.toLowerCase().replace(/\s+/g, '_')}`;
-              console.log('📢 [SplashScreen] Subscribing to district topic:', districtTopic);
-              await messaging().subscribeToTopic(districtTopic);
-              console.log('✅ [SplashScreen] Successfully subscribed to district topic:', districtTopic);
-            }
-            
-            if (userData.categories?.length) {
-              for (const category of userData.categories) {
-                const categoryTopic = `category_${category.toLowerCase().replace(/\s+/g, '_')}`;
-                console.log('📢 [SplashScreen] Subscribing to category topic:', categoryTopic);
-                await messaging().subscribeToTopic(categoryTopic);
-                console.log('✅ [SplashScreen] Successfully subscribed to category topic:', categoryTopic);
-              }
-            }
-          }
-
-          // Verify topic subscriptions
-          console.log('🔍 [SplashScreen] Verifying topic subscriptions...');
-          const topics = ['news_updates', 'news_approvals'];
-          
-          if (userData?.state) {
-            const stateTopic = `state_${userData.state.toLowerCase().replace(/\s+/g, '_')}`;
-            topics.push(stateTopic);
-          }
-          
-          if (userData?.district) {
-            const districtTopic = `district_${userData.district.toLowerCase().replace(/\s+/g, '_')}`;
-            topics.push(districtTopic);
-          }
-          
-          if (userData?.categories?.length) {
-            userData.categories.forEach(category => {
-              const categoryTopic = `category_${category.toLowerCase().replace(/\s+/g, '_')}`;
-              topics.push(categoryTopic);
-            });
-          }
-
-          console.log('📋 [SplashScreen] Subscribed topics:', topics);
-          
-          // Log FCM token for verification
-          console.log('🔑 [SplashScreen] Current FCM token:', fcmToken);
-          
-        } catch (error) {
-          console.error('❌ [SplashScreen] Error during topic subscription:', error);
-          console.error('Error details:', error.message);
-          console.error('Error stack:', error.stack);
-        }
-        
-        console.log('✅ [SplashScreen] Notification setup completed');
-
-        // Cleanup function
-        return unsubscribe;
       }
     } catch (error) {
-      console.error('❌ [SplashScreen] Error initializing notifications:', error);
-      console.error('Error details:', error.message);
-      console.error('Error stack:', error.stack);
+      console.error('Error initializing notifications:', error);
     }
   };
 
   useEffect(() => {
-    console.log('🔄 [SplashScreen] Component mounted, initializing notifications...');
-    
-    let unsubscribe = null;
-    
-    // Initialize notifications
-    const initNotifications = async () => {
+    const setupNotifications = async () => {
       try {
-        unsubscribe = await initializeNotifications();
+        // Request Android permissions for notifications
+        if (Platform.OS === 'android') {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+            {
+              title: "Notification Permission",
+              message: "NewzTok needs notification permission to keep you updated with latest news",
+              buttonNeutral: "Ask Me Later",
+              buttonNegative: "Cancel",
+              buttonPositive: "OK"
+            }
+          );
+          
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            console.log('Notification permission denied');
+            return;
+          }
+        }
+        
+        // Initialize notifications
+        await initializeNotifications();
       } catch (error) {
-        console.error('❌ [SplashScreen] Error during notification initialization:', error);
+        console.error('Error setting up notifications:', error);
       }
     };
     
-    initNotifications();
-    
-    // Cleanup function
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        console.log('🧹 [SplashScreen] Cleaning up notification listeners...');
-        unsubscribe();
-      }
-    };
+    setupNotifications();
   }, [navigation]);
 
   useEffect(() => {
