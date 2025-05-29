@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Image, Linking, ScrollView, Modal, Platform, StatusBar } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Image, Linking, ScrollView, Modal, Platform, StatusBar, TextInput } from "react-native";
 import { BLACK, BLUE, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { MyHeader } from "../../components/commonComponents/MyHeader";
@@ -9,12 +9,16 @@ import { useDispatch } from 'react-redux';
 import { storeStringByKey, getStringByKey, getObjByKey } from '../../utils/Storage';
 import { BASE_URL } from "../../constants/url";
 import { ToastMessage } from "../../components/commonComponents/ToastMessage";
+import { MyAlert } from "../../components/commonComponents/MyAlert";
 
 export default SettingsScreen = ({ navigation }) => {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [isNotificationsOn, setIsNotificationsOn] = useState(false);
     const [showTermsModal, setShowTermsModal] = useState(false);
     const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+    const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [password, setPassword] = useState('');
     const [toastMessage, setToastMessage] = useState({
         visible: false,
         message: "",
@@ -90,6 +94,84 @@ export default SettingsScreen = ({ navigation }) => {
 
     const openSupportMail = () => {
         Linking.openURL("mailto:support@boldtribe.in");
+    };
+
+    const handleDeleteAccount = async () => {
+        console.log('Delete account button pressed');
+        // Directly show password modal for testing
+        setShowPasswordModal(true);
+    };
+
+    const handlePasswordSubmit = async () => {
+        console.log('Password submit pressed with password:', password);
+        
+        // Check if password is empty
+        if (!password || password.trim() === '') {
+            showToast("Please enter your password", "error");
+            return;
+        }
+
+        try {
+            const userToken = 
+                await getStringByKey('userToken') || 
+                (await getObjByKey('user'))?.token ||
+                await getStringByKey('loginResponse');
+            
+            console.log('User token:', userToken);
+            
+            if (!userToken) {
+                showToast("Authentication failed", "error");
+                return;
+            }
+
+            // For testing, show the API call details
+            console.log('Making delete account API call to:', `${BASE_URL}api/auth/delete-account`);
+            console.log('With headers:', {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${userToken}`
+            });
+            console.log('With body:', { password });
+
+            const response = await fetch(`${BASE_URL}api/auth/delete-account`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userToken}`
+                },
+                body: JSON.stringify({ password })
+            });
+
+            const data = await response.json();
+            console.log('Delete account response:', data);
+
+            if (data.success) {
+                showToast("Account deleted successfully", "success");
+                // Clear all storage
+                await AsyncStorage.clear();
+                await storeStringByKey("loginResponse", "");
+                await storeStringByKey("refresh_token", "");
+                await storeStringByKey("userToken", "");
+                
+                // Dispatch logout action
+                dispatch({ type: 'LOGOUT' });
+
+                // Navigate to Main screen
+                setTimeout(() => {
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Main' }],
+                    });
+                }, 1500);
+            } else {
+                showToast(data.message || "Failed to delete account", "error");
+            }
+        } catch (error) {
+            console.error("Error deleting account:", error);
+            showToast("Error deleting account", "error");
+        } finally {
+            setShowPasswordModal(false);
+            setPassword('');
+        }
     };
 
     const TermsAndConditionsContent = () => (
@@ -375,10 +457,10 @@ export default SettingsScreen = ({ navigation }) => {
                     <Text style={styles.text}>Rate This App</Text>
                 </TouchableOpacity> */}
 
-                {/* Deactivate Account */}
-                {/* <TouchableOpacity style={styles.rowContainer}>
-                    <Text style={styles.text}>Deactivate Account</Text>
-                </TouchableOpacity> */}
+                {/* Delete Account */}
+                <TouchableOpacity style={styles.rowContainer} onPress={handleDeleteAccount}>
+                    <Text style={[styles.text, { color: RED }]}>Delete Account</Text>
+                </TouchableOpacity>
 
                 {/* App Version */}
                 {/* <View style={styles.rowContainer}>
@@ -392,6 +474,105 @@ export default SettingsScreen = ({ navigation }) => {
                 </TouchableOpacity>
             </View>
             
+            {/* Delete Account Alert */}
+            <MyAlert
+                visible={showDeleteAlert}
+                title="Delete Account"
+                message="Are you sure you want to delete your account? This action cannot be undone."
+                textLeft="Cancel"
+                textRight="Delete"
+                backgroundColor={RED}
+                onPressLeft={() => setShowDeleteAlert(false)}
+                onPressRight={handleDeleteAccount}
+            />
+
+            {/* Password Confirmation Modal */}
+            <Modal
+                visible={showPasswordModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => {
+                    console.log('Password modal close requested');
+                    setShowPasswordModal(false);
+                }}
+            >
+                <View style={[styles.passwordModalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.8)' }]}>
+                    <View style={[styles.passwordModalContent, { 
+                        width: '90%', 
+                        maxWidth: 400,
+                        backgroundColor: WHITE,
+                        borderRadius: 20,
+                        padding: 25,
+                        elevation: 5,
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.25,
+                        shadowRadius: 3.84,
+                    }]}>
+                        <Text style={[styles.passwordModalTitle, { fontSize: 24, marginBottom: 20 }]}>
+                            Confirm Password
+                        </Text>
+                        <Text style={[styles.passwordModalMessage, { fontSize: 16, marginBottom: 25 }]}>
+                            Please enter your password to delete your account
+                        </Text>
+                        <TextInput
+                            style={[styles.passwordInput, { 
+                                height: 50,
+                                fontSize: 16,
+                                backgroundColor: '#f5f5f5',
+                                borderWidth: 1,
+                                borderColor: '#ddd',
+                                borderRadius: 10,
+                                paddingHorizontal: 15,
+                                marginBottom: 25,
+                            }]}
+                            placeholder="Enter your password"
+                            secureTextEntry
+                            value={password}
+                            onChangeText={(text) => {
+                                console.log('Password input changed:', text);
+                                setPassword(text);
+                            }}
+                            placeholderTextColor="#999"
+                        />
+                        <View style={[styles.passwordModalButtons, { gap: 15 }]}>
+                            <TouchableOpacity 
+                                style={[styles.passwordModalButton, styles.cancelButton, {
+                                    flex: 1,
+                                    height: 50,
+                                    borderRadius: 10,
+                                    backgroundColor: '#f0f0f0',
+                                    borderWidth: 1,
+                                    borderColor: '#ddd',
+                                }]}
+                                onPress={() => {
+                                    console.log('Cancel button pressed');
+                                    setShowPasswordModal(false);
+                                    setPassword('');
+                                }}
+                            >
+                                <Text style={[styles.passwordModalButtonText, { color: BLACK }]}>
+                                    Cancel
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                                style={[styles.passwordModalButton, styles.confirmButton, {
+                                    flex: 1,
+                                    height: 50,
+                                    borderRadius: 10,
+                                    backgroundColor: RED,
+                                }]}
+                                onPress={handlePasswordSubmit}
+                            >
+                                <Text style={[styles.passwordModalButtonText, { color: WHITE }]}>
+                                    Delete Account
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Terms and Conditions Modal */}
             <Modal
                 animationType="slide"
@@ -620,5 +801,79 @@ const styles = StyleSheet.create({
         color: BLACK,
         marginTop: 20,
         marginBottom: 8,
+    },
+    passwordModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    passwordModalContent: {
+        backgroundColor: WHITE,
+        borderRadius: 15,
+        padding: 25,
+        width: '90%',
+        maxWidth: 400,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    passwordModalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: BLACK,
+        marginBottom: 15,
+    },
+    passwordModalMessage: {
+        fontSize: 16,
+        color: BLACK,
+        textAlign: 'center',
+        marginBottom: 25,
+        lineHeight: 22,
+    },
+    passwordInput: {
+        width: '100%',
+        height: 50,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        paddingHorizontal: 15,
+        marginBottom: 25,
+        color: BLACK,
+        fontSize: 16,
+        backgroundColor: '#f5f5f5',
+    },
+    passwordModalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        gap: 15,
+    },
+    passwordModalButton: {
+        flex: 1,
+        height: 50,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    cancelButton: {
+        backgroundColor: '#f0f0f0',
+        borderWidth: 1,
+        borderColor: '#ddd',
+    },
+    confirmButton: {
+        backgroundColor: RED,
+    },
+    passwordModalButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: WHITE,
     },
 });
