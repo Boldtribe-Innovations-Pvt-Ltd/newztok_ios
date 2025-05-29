@@ -132,8 +132,8 @@ export default SettingsScreen = ({ navigation }) => {
             });
             console.log('With body:', { password });
 
-            const response = await fetch(`${BASE_URL}api/auth/delete-account`, {
-                method: 'POST',
+            const response = await fetch(`${BASE_URL}api/users/delete-account`, {
+                method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${userToken}`
@@ -155,6 +155,10 @@ export default SettingsScreen = ({ navigation }) => {
                 // Dispatch logout action
                 dispatch({ type: 'LOGOUT' });
 
+                // Close modal and clear password only on success
+                setShowPasswordModal(false);
+                setPassword('');
+
                 // Navigate to Main screen
                 setTimeout(() => {
                     navigation.reset({
@@ -163,14 +167,15 @@ export default SettingsScreen = ({ navigation }) => {
                     });
                 }, 1500);
             } else {
-                showToast(data.message || "Failed to delete account", "error");
+                // For invalid password or other errors, keep modal open
+                showToast(data.message || "Invalid password", "error");
+                // Clear password field but keep modal open
+                setPassword('');
             }
         } catch (error) {
             console.error("Error deleting account:", error);
             showToast("Error deleting account", "error");
-        } finally {
-            setShowPasswordModal(false);
-            setPassword('');
+            // Keep modal open on error
         }
     };
 
