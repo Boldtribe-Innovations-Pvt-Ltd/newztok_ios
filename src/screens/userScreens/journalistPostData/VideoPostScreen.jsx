@@ -970,10 +970,10 @@ export default VideoPostScreen = () => {
                 type={toastMessage.type}
                 duration={3000}
             />
-            <MyLoader 
+            {/* <MyLoader 
                 visible={loading}
                 backgroundColor="rgba(255, 255, 255, 0.8)"
-            />
+            /> */}
         </>
     );
 };

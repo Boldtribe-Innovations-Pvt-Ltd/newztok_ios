@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator, Modal, TextInput, Platform, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
-import { DISLIKE, LIKE, PRESSDISLIKE, PRESSLIKE, SHARE, THREEDOTS, ACCOUNT, VERIFIED, RAMNABAMI, WHATSAPP, COMMENT, DOWNARROW } from "../../constants/imagePath";
+import { DISLIKE, LIKE, PRESSDISLIKE, PRESSLIKE, SHARE, THREEDOTS, REPORTOR, VERIFIED, RAMNABAMI, WHATSAPP, COMMENT, DOWNARROW } from "../../constants/imagePath";
 import { CustomBtn } from "../../components/commonComponents/CustomBtn";
 import YoutubeIframe from "react-native-youtube-iframe";
 import { MyLoader } from "../../components/commonComponents/MyLoader";
@@ -395,7 +395,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                                 title: newsItem.headline || newsItem.title || "District News",
                                 posterName: newsItem.journalist?.username || "Journalist",
                                 time: formatTime(newsItem.updatedAt || newsItem.createdAt),
-                                accountImage: journalistProfilePic ? { uri: journalistProfilePic } : ACCOUNT,
+                                accountImage: journalistProfilePic ? { uri: journalistProfilePic } : REPORTOR,
                                 verifiedIcon: VERIFIED,
                                 content: newsItem.content,
                                 contentHasHtml: hasHtmlTags(newsItem.content),
@@ -508,7 +508,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                                 title: newsItem.headline || newsItem.title || "Recent News",
                                 posterName: newsItem.journalist?.username || "Journalist",
                                 time: formatTime(newsItem.updatedAt || newsItem.createdAt),
-                                accountImage: journalistProfilePic ? { uri: journalistProfilePic } : ACCOUNT,
+                                accountImage: journalistProfilePic ? { uri: journalistProfilePic } : REPORTOR,
                                 verifiedIcon: VERIFIED,
                                 content: newsItem.content,
                                 contentHasHtml: hasHtmlTags(newsItem.content),
@@ -1056,6 +1056,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
         
         return (
             <View style={styles.cardWrapper}>
+                {/* Commented out journalist section
                 <View style={styles.cardHeader}>
                     <View style={styles.headerLeft}>
                         <Image source={item.accountImage} style={styles.accountImage} />
@@ -1074,6 +1075,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                         </Text>
                     </TouchableOpacity>
                 </View>
+                */}
 
                 <View style={styles.card}>
                     <View style={styles.videoContainer}>
@@ -1571,7 +1573,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                 )}
             </View>
             
-            <MyLoader visible={loading} />
+            {/* <MyLoader visible={loading} /> */}
             
             {/* Add MyAlert component for login prompt */}
             <MyAlert
@@ -1770,8 +1772,8 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(0, 0, 0, 0.1)',
     },
     actionIcon: {
-        width: WIDTH * 0.045,
-        height: WIDTH * 0.045,
+        width: WIDTH * 0.06,
+        height: WIDTH * 0.06,
         marginRight: WIDTH * 0.01,
     },
     actionCountText: {
@@ -1793,8 +1795,8 @@ const styles = StyleSheet.create({
         fontSize: WIDTH * 0.03,
     },
     accountImage: {
-        width: WIDTH * 0.06,
-        height: WIDTH * 0.06,
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
         borderRadius: WIDTH * 0.04,
         marginRight: WIDTH * 0.015,
     },

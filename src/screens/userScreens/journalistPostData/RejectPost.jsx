@@ -96,9 +96,9 @@ export default RejectPost = () => {
                     </View>
                 )}
             </View>
-            <MyLoader 
+            {/* <MyLoader 
             visible={loading}
-            />
+            /> */}
         </>
     )
 };

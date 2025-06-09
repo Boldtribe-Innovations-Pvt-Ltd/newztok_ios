@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
-import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
+import { LIKE, SHARE as SHAREICON, PRESSLIKE, REPORTOR, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
 import YoutubeIframe from "react-native-youtube-iframe";
 import { CustomBtn } from "../../components/commonComponents/CustomBtn";
 import { BackHandler } from "react-native";
@@ -321,9 +321,9 @@ export default function NMainScreenScreen({ navigation }) {
             if (!isRefreshing) {
                 setLoading(true);
             }
-            console.log('Fetching news from:', `${BASE_URL}api/news/public`);
+            console.log('Fetching news from:', `${BASE_URL}api/news/trending`);
             
-            const response = await GETNETWORK(`${BASE_URL}api/news/public`);
+            const response = await GETNETWORK(`${BASE_URL}api/news/trending`);
             console.log('API Response:', response);
             
             if (response.success && response.data) {
@@ -381,24 +381,18 @@ export default function NMainScreenScreen({ navigation }) {
                     }
                     
                     // Process journalist information
-                    let journalistName = "Unknown";
-                    let journalistImage = ACCOUNT;
+                    let journalistName = "Journalist";
+                    let journalistImage = REPORTOR;
                     
-                    // Check if journalist data exists and extract name
+                    // Check if journalist data exists and extract profile image
                     if (newsItem.journalist) {
-                        if (newsItem.journalist.name) {
-                            journalistName = newsItem.journalist.name;
-                        } else if (newsItem.journalist.username) {
-                            journalistName = newsItem.journalist.username;
-                        }
-                        
                         // Extract journalist profile image if available
                         if (newsItem.journalist.profile_image || newsItem.journalist.profilePic) {
                             const profileImg = newsItem.journalist.profile_image || newsItem.journalist.profilePic;
                             journalistImage = { uri: processUrl(profileImg) };
                         }
-                    } else if (newsItem.journalist_name) {
-                        journalistName = newsItem.journalist_name;
+                    } else if (newsItem.journalist_image) {
+                        journalistImage = { uri: processUrl(newsItem.journalist_image) };
                     }
                     
                     // Get the like count for this news item
@@ -1168,11 +1162,11 @@ export default function NMainScreenScreen({ navigation }) {
             <View style={styles.cardWrapper}>
                 <View style={styles.cardHeader}>
                     <View style={styles.headerLeft}>
-                        <Image source={item.accountImage} style={styles.accountImage} />
+                        {/* <Image source={item.accountImage} style={styles.accountImage} />
                         <Text style={styles.headerText}>{item.posterName}</Text>
-                        <Image source={item.verifiedIcon} style={styles.verifiedIcon} />
+                        <Image source={item.verifiedIcon} style={styles.verifiedIcon} /> */}
                     </View>
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                         style={[styles.followButton, followStatus[item.id] && styles.followedButton]}
                         onPress={() => handleFollow(item.id)}
                     >
@@ -1182,7 +1176,7 @@ export default function NMainScreenScreen({ navigation }) {
                         <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
                             {followStatus[item.id] ? 'Followed' : 'Follow'}
                         </Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </View>
 
                 <View style={styles.card}>
@@ -1481,9 +1475,9 @@ export default function NMainScreenScreen({ navigation }) {
                 )}
             </View>
             
-            <MyLoader 
+            {/* <MyLoader 
                 visible={loading}
-            />
+            /> */}
             
             {/* Comment Modal */}
             {renderCommentModal()}
@@ -1533,7 +1527,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
     },
-    headerText: {
+    /* headerText: {
         fontSize: WIDTH * 0.035,
         fontFamily: LORA,
         color: BLACK,
@@ -1561,6 +1555,20 @@ const styles = StyleSheet.create({
         color: WHITE,
         textAlign: "center",
     },
+    followedButton: {
+        backgroundColor: WHITE,
+        borderWidth: 1,
+        borderColor: BLUE,
+    },
+    followedText: {
+        color: BLUE,
+    },
+    accountImage: {
+        width: WIDTH * 0.08,
+        height: WIDTH * 0.08,
+        borderRadius: WIDTH * 0.04,
+        marginRight: WIDTH * 0.015,
+    }, */
     card: {
         backgroundColor: WHITE,
         borderRadius: WIDTH * 0.015,
@@ -1666,12 +1674,6 @@ const styles = StyleSheet.create({
         fontFamily: POPPINSMEDIUM,
         fontSize: WIDTH * 0.03,
     },
-    accountImage: {
-        width: WIDTH * 0.06,
-        height: WIDTH * 0.06,
-        borderRadius: WIDTH * 0.04,
-        marginRight: WIDTH * 0.015,
-    },
     loader: {
         justifyContent: 'center',
         alignItems: 'center',
@@ -1693,14 +1695,6 @@ const styles = StyleSheet.create({
         color: GREY,
         fontFamily: BOLDMONTSERRAT,
         textAlign: 'center',
-    },
-    followedButton: {
-        backgroundColor: WHITE,
-        borderWidth: 1,
-        borderColor: BLUE,
-    },
-    followedText: {
-        color: BLUE,
     },
     adContainer: {
         width: WIDTH * 0.9,
@@ -1862,8 +1856,8 @@ const styles = StyleSheet.create({
         width: WIDTH * 0.02,
     },
     socialIcon: {
-        width: WIDTH * 0.08,
-        height: WIDTH * 0.08,
+        width: WIDTH * 0.06,
+        height: WIDTH * 0.06,
         resizeMode: 'contain',
     },
     // Modal styles

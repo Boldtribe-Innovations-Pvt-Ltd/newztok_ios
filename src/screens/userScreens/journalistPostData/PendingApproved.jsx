@@ -96,9 +96,9 @@ export default PendingApprove = () => {
                     </View>
                 )}
             </View>
-            <MyLoader 
+            {/* <MyLoader 
             visible={loading}
-            />
+            /> */}
         </>
     )
 };

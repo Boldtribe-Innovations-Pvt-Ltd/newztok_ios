@@ -877,7 +877,7 @@ export default SearchScreen = ({ navigation }) => {
                 />
             )}
             
-            <MyLoader visible={loading} />
+            {/* <MyLoader visible={loading} /> */}
         </>
     );
 };

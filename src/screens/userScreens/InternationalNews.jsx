@@ -1131,7 +1131,7 @@ export default InternationalNews = ({ route, navigation }) => {
                 image={LOGO2}
             />
 
-            <MyLoader visible={loading} />
+            {/* <MyLoader visible={loading} /> */}
 
             {renderCommentModal()}
         </>

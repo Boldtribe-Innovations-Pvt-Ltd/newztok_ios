@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { FlatList, Image, Share, StyleSheet, Text, TouchableOpacity, View, Alert, Linking, ActivityIndicator, Modal, TextInput, Animated } from "react-native";
 import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/color";
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
-import { LIKE, SHARE as SHAREICON, PRESSLIKE, ACCOUNT, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
+import { LIKE, SHARE as SHAREICON, PRESSLIKE, REPORTOR, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
 import YoutubeIframe from "react-native-youtube-iframe";
 import { CustomBtn } from "../../components/commonComponents/CustomBtn";
 import { useFocusEffect } from "@react-navigation/native";
@@ -381,8 +381,8 @@ export default function EntertainmentNewzScreen({ navigation }) {
                     }
                     
                     // Process journalist information
-                    let journalistName = "Unknown";
-                    let journalistImage = ACCOUNT;
+                    let journalistName = "Journalist";
+                    let journalistImage = REPORTOR;
                     
                     // Check if journalist data exists and extract name
                     if (newsItem.journalist) {
@@ -1118,11 +1118,11 @@ export default function EntertainmentNewzScreen({ navigation }) {
             <View style={styles.cardWrapper}>
                 <View style={styles.cardHeader}>
                     <View style={styles.headerLeft}>
-                        <Image source={item.accountImage} style={styles.accountImage} />
+                        {/* <Image source={item.accountImage} style={styles.accountImage} />
                         <Text style={styles.headerText}>{item.posterName}</Text>
-                        <Image source={item.verifiedIcon} style={styles.verifiedIcon} />
+                        <Image source={item.verifiedIcon} style={styles.verifiedIcon} /> */}
                     </View>
-                    <TouchableOpacity
+                    {/* <TouchableOpacity
                         style={[styles.followButton, followStatus[item.id] && styles.followedButton]}
                         onPress={() => handleFollow(item.id)}
                     >
@@ -1132,7 +1132,7 @@ export default function EntertainmentNewzScreen({ navigation }) {
                         <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
                             {followStatus[item.id] ? 'Followed' : 'Follow'}
                         </Text>
-                    </TouchableOpacity>
+                    </TouchableOpacity> */}
                 </View>
 
                 <View style={styles.card}>
@@ -1347,9 +1347,9 @@ export default function EntertainmentNewzScreen({ navigation }) {
                 )}
             </View>
             
-            <MyLoader 
+            {/* <MyLoader 
                 visible={loading}
-            />
+            /> */}
             
             {/* Comment Modal */}
             {renderCommentModal()}
@@ -1400,32 +1400,32 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     headerText: {
-        fontSize: WIDTH * 0.035,
-        fontFamily: LORA,
-        color: BLACK,
-        marginRight: WIDTH * 0.01,
+        // fontSize: WIDTH * 0.035,
+        // fontFamily: LORA,
+        // color: BLACK,
+        // marginRight: WIDTH * 0.01,
     },
     verifiedIcon: {
-        width: WIDTH * 0.04,
-        height: WIDTH * 0.04,
+        // width: WIDTH * 0.04,
+        // height: WIDTH * 0.04,
     },
     followButton: {
-        flexDirection: "row",
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: BLUE,
-        paddingVertical: HEIGHT * 0.003,
-        paddingHorizontal: WIDTH * 0.015,
-        borderRadius: WIDTH * 0.01,
-        height: HEIGHT * 0.03,
-        width: WIDTH * 0.18,
-        gap: WIDTH * 0.01
+        // flexDirection: "row",
+        // justifyContent: "center",
+        // alignItems: "center",
+        // backgroundColor: BLUE,
+        // paddingVertical: HEIGHT * 0.003,
+        // paddingHorizontal: WIDTH * 0.015,
+        // borderRadius: WIDTH * 0.01,
+        // height: HEIGHT * 0.03,
+        // width: WIDTH * 0.18,
+        // gap: WIDTH * 0.01
     },
     followButtonText: {
-        fontSize: WIDTH * 0.025,
-        fontFamily: BOLDMONTSERRAT,
-        color: WHITE,
-        textAlign: "center",
+        // fontSize: WIDTH * 0.025,
+        // fontFamily: BOLDMONTSERRAT,
+        // color: WHITE,
+        // textAlign: "center",
     },
     card: {
         backgroundColor: WHITE,
@@ -1510,8 +1510,8 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(0, 0, 0, 0.1)',
     },
     actionIcon: {
-        width: WIDTH * 0.045,
-        height: WIDTH * 0.045,
+        width: WIDTH * 0.06,
+        height: WIDTH * 0.06,
         marginRight: WIDTH * 0.01,
     },
     actionCountText: {
@@ -1533,10 +1533,10 @@ const styles = StyleSheet.create({
         fontSize: WIDTH * 0.03,
     },
     accountImage: {
-        width: WIDTH * 0.06,
-        height: WIDTH * 0.06,
-        borderRadius: WIDTH * 0.04,
-        marginRight: WIDTH * 0.015,
+        // width: WIDTH * 0.08,
+        // height: WIDTH * 0.08,
+        // borderRadius: WIDTH * 0.04,
+        // marginRight: WIDTH * 0.015,
     },
     loader: {
         justifyContent: 'center',
@@ -1561,12 +1561,12 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     followedButton: {
-        backgroundColor: WHITE,
-        borderWidth: 1,
-        borderColor: BLUE,
+        // backgroundColor: WHITE,
+        // borderWidth: 1,
+        // borderColor: BLUE,
     },
     followedText: {
-        color: BLUE,
+        // color: BLUE,
     },
     adContainer: {
         width: WIDTH * 0.9,
@@ -1728,8 +1728,8 @@ const styles = StyleSheet.create({
         width: WIDTH * 0.02,
     },
     socialIcon: {
-        width: WIDTH * 0.08,
-        height: WIDTH * 0.08,
+        width: WIDTH * 0.06,
+        height: WIDTH * 0.06,
         resizeMode: 'contain',
     },
     // Modal styles

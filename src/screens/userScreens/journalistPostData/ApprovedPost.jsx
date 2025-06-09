@@ -96,9 +96,9 @@ export default ApprovedPost = () => {
                     </View>
                 )}
             </View>
-            <MyLoader 
+            {/* <MyLoader 
             visible={loading}
-            />
+            /> */}
         </>
     )
 };
