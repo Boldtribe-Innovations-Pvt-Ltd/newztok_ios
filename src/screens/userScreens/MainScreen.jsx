@@ -518,20 +518,38 @@ export default function NMainScreenScreen({ navigation }) {
                 setNewsData(sortedData);
             } else {
                 console.error("API Error:", response.message);
-                Alert.alert(
-                    "Error",
-                    response.message || "Unable to fetch news. Please try again later.",
-                    [{ text: "OK" }]
-                );
+                // Check for 500 status code
+                if (response.status === 500) {
+                    Alert.alert(
+                        "System Upgrade",
+                        "We are upgrading our system. Please try again after some time.",
+                        [{ text: "OK" }]
+                    );
+                } else {
+                    Alert.alert(
+                        "Error",
+                        response.message || "Unable to fetch news. Please try again later.",
+                        [{ text: "OK" }]
+                    );
+                }
                 setNewsData([]);
             }
         } catch (error) {
             console.error("Error fetching news:", error);
-            Alert.alert(
-                "Error",
-                "Unable to fetch news. Please check your internet connection and try again.",
-                [{ text: "OK" }]
-            );
+            // Check if error has status code 500
+            if (error.status === 500 || (error.response && error.response.status === 500)) {
+                Alert.alert(
+                    "System Upgrade",
+                    "We are upgrading our system. Please try again after some time.",
+                    [{ text: "OK" }]
+                );
+            } else {
+                Alert.alert(
+                    "Error",
+                    "Unable to fetch news. Please check your internet connection and try again.",
+                    [{ text: "OK" }]
+                );
+            }
             setNewsData([]);
         } finally {
             if (!isRefreshing) {

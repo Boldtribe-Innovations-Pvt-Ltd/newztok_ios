@@ -335,7 +335,7 @@ export default function EntertainmentNewzScreen({ navigation }) {
                     throw new Error('Invalid response format: News data is not an array');
                 }
 
-                // No need to filter as the API already returns  News
+                // No need to filter as the API already returns News
                 console.log('News from API:', newsArray);
                 
                 // Use the updated processUrl function instead of processImageUrl
@@ -469,12 +469,6 @@ export default function EntertainmentNewzScreen({ navigation }) {
                 // Wait for all Promise.all to resolve the like count fetches
                 const resolvedData = await Promise.all(transformedData);
                 
-                // Log some of the dates to debug
-                console.log('Sample of news items before sorting:');
-                resolvedData.slice(0, 3).forEach(item => {
-                    console.log(`Title: ${item.title.substring(0, 20)}..., Created: ${item.createdAt}, Updated: ${item.updatedAt}, Raw: ${item.raw_date}, Likes: ${item.likeCount}`);
-                });
-
                 // Sort by creation date first (newest first)
                 const sortedData = resolvedData.sort((a, b) => {
                     // Try parsing dates in different formats
@@ -533,11 +527,21 @@ export default function EntertainmentNewzScreen({ navigation }) {
             }
         } catch (error) {
             console.error("Error fetching news:", error);
-            Alert.alert(
-                "Error",
-                "Unable to fetch news. Please check your internet connection and try again.",
-                [{ text: "OK" }]
-            );
+            
+            // Check if it's a 500 error
+            if (error.status === 500 || (error.response && error.response.status === 500)) {
+                Alert.alert(
+                    "System Update",
+                    "We are upgrading our system. Please try again after some time.",
+                    [{ text: "OK" }]
+                );
+            } else {
+                Alert.alert(
+                    "Error",
+                    "Unable to fetch news. Please check your internet connection and try again.",
+                    [{ text: "OK" }]
+                );
+            }
             setNewsData([]);
         } finally {
             setLoading(false);
