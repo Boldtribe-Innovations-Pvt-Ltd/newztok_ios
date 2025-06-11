@@ -1222,7 +1222,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
         
         const dataWithAds = [];
         
-        // Insert ads after every news item
+        // Insert ads after every 6 news items
         newsItems.forEach((item, index) => {
             // Add the news item
             dataWithAds.push({
@@ -1230,11 +1230,13 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                 itemType: 'news'
             });
             
-            // Add an ad after each news item
-            dataWithAds.push({
-                id: `ad-${index}-${Math.random().toString()}`,  // Ensure unique ad IDs
-                itemType: 'ad'
-            });
+            // Add an ad after every 6 news items
+            if ((index + 1) % 6 === 0) {
+                dataWithAds.push({
+                    id: `ad-${index}-${Math.random().toString()}`,  // Ensure unique ad IDs
+                    itemType: 'ad'
+                });
+            }
         });
         
         return dataWithAds;

@@ -4,9 +4,9 @@ import { BLACK, BLUE, BORDERCOLOR, GREY, RED, WHITE } from "../../constants/colo
 import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LIKE, SHARE as SHAREICON, PRESSLIKE, REPORTOR, VERIFIED, RAMNABAMI, LINKEDIN, YOUTUBE, FACEBOOKICON, INSTAGRAM, XICON, WHATSAPP, SHARE, VIEW, COMMENT, DOWNARROW } from "../../constants/imagePath";
 import YoutubeIframe from "react-native-youtube-iframe";
-import { CustomBtn } from "../../components/commonComponents/CustomBtn";
-import { useFocusEffect } from "@react-navigation/native";
-import { BackHandler } from "react-native";
+// import { CustomBtn } from "../../components/commonComponents/CustomBtn";
+// import { useFocusEffect } from "@react-navigation/native";
+// import { BackHandler } from "react-native";
 import { BASE_URL } from "../../constants/url";
 console.log('Current BASE_URL:', BASE_URL);
 import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
@@ -1241,19 +1241,21 @@ export default function EntertainmentNewzScreen({ navigation }) {
         
         const dataWithAds = [];
         
-        // Insert ads after every news item
-        newsItems.forEach((item) => {
+        // Insert ads after every 6 news items
+        newsItems.forEach((item, index) => {
             // Add the news item
             dataWithAds.push({
                 ...item,
                 itemType: 'news'
             });
             
-            // Add an ad after each news item
-            dataWithAds.push({
-                id: `ad-${Math.random().toString()}`,
-                itemType: 'ad'
-            });
+            // Add an ad after every 6 news items
+            if ((index + 1) % 6 === 0) {
+                dataWithAds.push({
+                    id: `ad-${index}-${Math.random().toString()}`,  // Ensure unique ad IDs
+                    itemType: 'ad'
+                });
+            }
         });
         
         return dataWithAds;

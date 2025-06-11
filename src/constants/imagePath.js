@@ -1,5 +1,5 @@
 export const LOGO = require("../assets/images/logo-removebg-preview.png");
-export const LOGO2 = require("../assets/images/newztoklogo.png");
+export const LOGO2 = require("../assets/images/Newztoklogo1.png");
 export const SHARE = require("../assets/images/share-2.png");
 export const SAVE = require("../assets/images/save-instagram.png");
 export const SAIF = require("../assets/images/saif ali khan.jpg");
