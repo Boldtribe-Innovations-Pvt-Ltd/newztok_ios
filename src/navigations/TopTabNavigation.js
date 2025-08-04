@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, NativeEventEmitter, NativeModules } from 'react-native';
 import MainScreen from '../screens/userScreens/MainScreen';
 import NationalNewzScreen from '../screens/userScreens/NationalNewzScreen';
 import InternationalNewzScreen from '../screens/userScreens/InternationalNewzScreen';
@@ -24,6 +24,7 @@ const TopTab = createMaterialTopTabNavigator();
 
 // List of screens where ads should be shown
 const AD_ENABLED_SCREENS = [
+    'Home',
     'Trending News',
     'National',
     'International',
@@ -49,11 +50,12 @@ const AD_DISABLED_ROUTES = [
 export const UserTopTabNavigation = ({ navigation, route }) => {
     const isLoggedIn = route.params?.isLoggedIn || false;
 
+    // PopoverAd state variables and refs
     const [showAd, setShowAd] = useState(false);
-    const adTimerRef = useRef(null);
     const [isActiveScreen, setIsActiveScreen] = useState(true);
-    const [currentScreen, setCurrentScreen] = useState('Trending News'); // Default to first tab
+    const [currentScreen, setCurrentScreen] = useState('Home');
     const [currentRouteName, setCurrentRouteName] = useState(null);
+    const scrollCountRef = useRef(0); // Global scroll count that persists across tabs
 
     // Try both methods for ad image source - use RAMNABAMI as fallback
     const adImageSource = RAMNABAMI || require('../assets/images/Launchposter.png');
@@ -67,44 +69,32 @@ export const UserTopTabNavigation = ({ navigation, route }) => {
     };
 
     const handleAdClose = () => {
+        console.log('❌ POPOVER AD CLOSED');
+        console.log('📊 Current scroll count after ad close:', scrollCountRef.current);
         setShowAd(false);
-        // Restart timer after ad is closed
-        startAdTimer();
     };
 
-    // Function to start the ad timer
-    const startAdTimer = () => {
-        // Clear any existing timer first
-        if (adTimerRef.current) {
-            clearInterval(adTimerRef.current);
-            adTimerRef.current = null;
-        }
-
-        // Only set timer if not in a disabled route
-        if (shouldDisableAds()) {
-            console.log('Ad timer not started: currently in ad-disabled route:', currentRouteName);
+    // Function to handle scroll events
+    const handleScroll = () => {
+        if (shouldDisableAds() || !isActiveScreen || !AD_ENABLED_SCREENS.includes(currentScreen)) {
+            console.log('Scroll blocked - Screen:', currentScreen, 'IsActive:', isActiveScreen, 'AdsDisabled:', shouldDisableAds());
             return;
         }
 
-        // Set a new timer to show ad every 220 seconds
-        adTimerRef.current = setInterval(() => {
-            // Check again if ads should be disabled before showing
-            if (shouldDisableAds()) {
-                console.log('Ad blocked: currently in ad-disabled route:', currentRouteName);
-                return;
-            }
-
-            // Only show ads if the current screen is in the AD_ENABLED_SCREENS list and the app is in foreground
-            if (isActiveScreen && AD_ENABLED_SCREENS.includes(currentScreen)) {
-                console.log('Ad timer triggered, showing PopoverAd on screen:', currentScreen);
-                setShowAd(true);
-            } else {
-                console.log('Ad timer triggered, but ads disabled for screen:', currentScreen);
-            }
-        }, 210000); // 210 seconds
+        scrollCountRef.current += 1;
+        console.log('🔥 SCROLL EVENT - Current Screen:', currentScreen);
+        console.log('📊 Scroll Count:', scrollCountRef.current);
+        console.log('🎯 Scrolls until next ad:', 7 - scrollCountRef.current);
+        
+        if (scrollCountRef.current >= 7) { // Show ad on 7th scroll (after every 7 scrolls)
+            console.log('🚀 SHOWING POPOVER AD - Scroll count reached 7!');
+            setShowAd(true);
+            scrollCountRef.current = 0; // Reset only after showing ad
+            console.log('✅ Scroll count reset to 0');
+        }
     };
 
-    // Handle tab change to track current screen
+    // Handle tab change to track current screen - maintain scroll count
     const handleTabChange = (state) => {
         if (!state) return;
 
@@ -112,101 +102,53 @@ export const UserTopTabNavigation = ({ navigation, route }) => {
         const index = state.index;
         if (routes && routes[index]) {
             setCurrentScreen(routes[index].name);
-            console.log('Current screen changed to:', routes[index].name);
+            // Don't reset scroll count when changing tabs - this maintains persistence
+            console.log('🔄 TAB CHANGED');
+            console.log('📍 New Tab:', routes[index].name);
+            console.log('📊 Persistent Scroll Count:', scrollCountRef.current);
+            console.log('🎯 Scrolls until next ad:', 7 - scrollCountRef.current);
         }
     };
 
-    // Track route changes across the app - only if navigation object exists
+    // Track route changes and handle navigation events
     useEffect(() => {
-        // If navigation is undefined, skip this effect
-        if (!navigation) {
-            console.log('Navigation object is undefined, skipping route tracking');
-            return;
-        }
+        if (!navigation) return;
 
-        try {
-            // Function to get current route name
-            const getActiveRouteName = (state) => {
-                if (!state || !state.routes || !state.routes[state.index]) {
-                    return null;
+        const getActiveRouteName = (state) => {
+            if (!state?.routes?.[state.index]) return null;
+            const route = state.routes[state.index];
+            return route.state ? getActiveRouteName(route.state) : route.name;
+        };
+
+        const unsubscribe = navigation.addListener('state', (e) => {
+            if (!e?.data?.state) return;
+
+            const routeName = getActiveRouteName(e.data.state);
+            if (routeName) {
+                setCurrentRouteName(routeName);
+                if (AD_DISABLED_ROUTES.includes(routeName) && showAd) {
+                    setShowAd(false);
                 }
+            }
+        });
 
-                const route = state.routes[state.index];
-                if (route.state) {
-                    // Dive into nested navigators
-                    return getActiveRouteName(route.state);
-                }
-                return route.name;
-            };
-
-            // Subscribe to navigation state changes
-            const unsubscribe = navigation.addListener('state', (e) => {
-                if (!e || !e.data || !e.data.state) return;
-
-                const routeName = getActiveRouteName(e.data.state);
-                if (routeName) {
-                    setCurrentRouteName(routeName);
-                    console.log('Current route changed to:', routeName);
-
-                    // If route changes to one that should disable ads, hide any showing ad
-                    if (AD_DISABLED_ROUTES.includes(routeName) && showAd) {
-                        console.log('Hiding ad because route changed to ad-disabled route:', routeName);
-                        setShowAd(false);
-                    }
-
-                    // Restart timer when route changes
-                    startAdTimer();
-                }
-            });
-
-            return unsubscribe;
-        } catch (error) {
-            console.log('Error setting up navigation listener:', error);
-            return () => { };
-        }
+        return unsubscribe;
     }, [navigation, showAd]);
 
-    // Clear the timer when unmounting
+    // Handle component lifecycle and screen focus
     useEffect(() => {
-        // Start the timer when component mounts
-        startAdTimer();
-
-        // Handle screen focus changes - only if navigation exists
         if (navigation) {
-            const unsubscribeFocus = navigation.addListener?.('focus', () => {
+            const unsubscribeFocus = navigation.addListener('focus', () => {
                 setIsActiveScreen(true);
-                console.log('TopTabNavigation is now focused');
-                // Start ad timer when screen is focused
-                startAdTimer();
             });
 
-            const unsubscribeBlur = navigation.addListener?.('blur', () => {
+            const unsubscribeBlur = navigation.addListener('blur', () => {
                 setIsActiveScreen(false);
-                console.log('TopTabNavigation is now blurred');
-                // Clear ad timer when screen loses focus
-                if (adTimerRef.current) {
-                    clearInterval(adTimerRef.current);
-                    adTimerRef.current = null;
-                }
             });
 
             return () => {
-                // Cleanup when unmounting
-                if (adTimerRef.current) {
-                    clearInterval(adTimerRef.current);
-                    adTimerRef.current = null;
-                }
-
-                if (unsubscribeFocus) unsubscribeFocus();
-                if (unsubscribeBlur) unsubscribeBlur();
-            };
-        } else {
-            // If no navigation object, just clean up the timer
-            return () => {
-                if (adTimerRef.current) {
-                    clearInterval(adTimerRef.current);
-                    adTimerRef.current = null;
-                }
+                unsubscribeFocus();
+                unsubscribeBlur();
             };
         }
     }, [navigation]);
@@ -230,52 +172,73 @@ export const UserTopTabNavigation = ({ navigation, route }) => {
                     tabBarIndicatorStyle: styles.indicator,
                 }}
                 screenListeners={{
-                    state: (e) => handleTabChange(e.data.state)
+                    state: (e) => handleTabChange(e.data.state),
                 }}
             >
                 <TopTab.Screen
                     name="Home"
                     component={MainScreen}
                     options={{ title: 'Home' }}
-                    initialParams={{ isLoggedIn }}
+                    initialParams={{ 
+                        isLoggedIn,
+                        onScroll: handleScroll // Pass scroll handler to screen
+                    }}
                 />
 
                 <TopTab.Screen
                     name="Trending News"
                     component={TrendingNewzScreen}
                     options={{ title: 'Trending' }}
-                    initialParams={{ isLoggedIn }}
+                    initialParams={{ 
+                        isLoggedIn,
+                        onScroll: handleScroll // Pass scroll handler to screen
+                    }}
                 />
 
                 <TopTab.Screen
                     name="National"
                     component={NationalNewzScreen}
                     options={{ title: 'National' }}
-                    initialParams={{ isLoggedIn }}
+                    initialParams={{ 
+                        isLoggedIn,
+                        onScroll: handleScroll // Pass scroll handler to screen
+                    }}
                 />
                 <TopTab.Screen
                     name="International"
                     component={InternationalNewzScreen}
                     options={{ title: 'International' }}
-                    initialParams={{ isLoggedIn }}
+                    initialParams={{ 
+                        isLoggedIn,
+                        onScroll: handleScroll // Pass scroll handler to screen
+                    }}
                 />
                 <TopTab.Screen
                     name="State"
                     component={DistrictNewzScreen}
                     options={{ title: 'State' }}
-                    initialParams={{ isLoggedIn }}
+                    initialParams={{ 
+                        isLoggedIn,
+                        onScroll: handleScroll // Pass scroll handler to screen
+                    }}
                 />
                 <TopTab.Screen
                     name="Sports"
                     component={SportsNewzScreen}
                     options={{ title: 'Sports' }}
-                    initialParams={{ isLoggedIn }}
+                    initialParams={{ 
+                        isLoggedIn,
+                        onScroll: handleScroll // Pass scroll handler to screen
+                    }}
                 />
                 <TopTab.Screen
                     name="Entertainment"
                     component={EntertainmentNewzScreen}
                     options={{ title: 'Entertainment' }}
-                    initialParams={{ isLoggedIn }}
+                    initialParams={{ 
+                        isLoggedIn,
+                        onScroll: handleScroll // Pass scroll handler to screen
+                    }}
                 />
             </TopTab.Navigator>
 

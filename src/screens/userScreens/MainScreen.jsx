@@ -22,7 +22,7 @@ import { MyAlert } from "../../components/commonComponents/MyAlert";
 console.log('Main Screen - Current BASE_URL:', BASE_URL);
 
 // Add VideoPlayer component
-const VideoPlayer = ({ videoPath }) => {
+const VideoPlayer = ({ videoPath, size = 'default' }) => {
     const videoRef = useRef(null);
     const [error, setError] = useState(false);
     const [loading, setLoading] = useState(true);
@@ -96,8 +96,15 @@ const VideoPlayer = ({ videoPath }) => {
     // Check if videoSource is valid
     if (!videoSource) {
         console.log('Invalid video source for path:', videoPath);
+        const wrapperStyle = size === 'big' ? styles.bigCardVideoWrapper : 
+                           size === 'small' ? styles.smallCardVideoWrapper : 
+                           styles.videoWrapper;
+        const videoStyle = size === 'big' ? styles.bigCardBackgroundVideo : 
+                         size === 'small' ? styles.smallCardBackgroundVideo : 
+                         styles.backgroundVideo;
+        
         return (
-            <View style={[styles.backgroundVideo, styles.videoPlaceholder]}>
+            <View style={[wrapperStyle, styles.videoPlaceholder]}>
                 <Text style={styles.videoErrorText}>No video available</Text>
             </View>
         );
@@ -106,8 +113,15 @@ const VideoPlayer = ({ videoPath }) => {
     // Log the actual video source being used
     console.log('Using video source:', JSON.stringify(videoSource));
     
+    const wrapperStyle = size === 'big' ? styles.bigCardVideoWrapper : 
+                       size === 'small' ? styles.smallCardVideoWrapper : 
+                       styles.videoWrapper;
+    const videoStyle = size === 'big' ? styles.bigCardBackgroundVideo : 
+                     size === 'small' ? styles.smallCardBackgroundVideo : 
+                     styles.backgroundVideo;
+    
     return (
-        <View style={styles.videoWrapper}>
+        <View style={wrapperStyle}>
             <Video
                 source={videoSource}
                 ref={videoRef}
@@ -115,7 +129,7 @@ const VideoPlayer = ({ videoPath }) => {
                 onLoad={onLoad}
                 onError={onError}
                 onLoadStart={() => console.log('Video load started')}
-                style={styles.backgroundVideo}
+                style={videoStyle}
                 resizeMode="contain"
                 repeat={false}
                 controls={!paused} // Only show controls when playing
@@ -124,7 +138,7 @@ const VideoPlayer = ({ videoPath }) => {
                 useTextureView={true}
             />
             {(loading || error) && (
-                <View style={[styles.backgroundVideo, styles.videoOverlay]}>
+                <View style={[videoStyle, styles.videoOverlay]}>
                     <Text style={styles.videoOverlayText}>
                         {loading && !error ? 'Loading video...' : 'Video Error'}
                     </Text>
@@ -134,7 +148,7 @@ const VideoPlayer = ({ videoPath }) => {
             {/* Show play button overlay when paused */}
             {paused && !loading && !error && (
                 <TouchableOpacity 
-                    style={[styles.backgroundVideo, styles.playButtonOverlay]}
+                    style={[videoStyle, styles.playButtonOverlay]}
                     onPress={togglePlayback}
                     activeOpacity={0.7}
                 >
@@ -815,6 +829,9 @@ export default function NMainScreenScreen({ navigation }) {
 
     const handleShare = async (item) => {
         try {
+            const ANDROID_STORE_LINK = 'https://play.google.com/store/apps/details?id=com.newztok';
+            const IOS_STORE_LINK = 'https://apps.apple.com/in/app/newztok/id6746141322';
+            
             // Remove HTML tags function
             const removeHtmlTags = (text) => {
                 if (!text) return '';
@@ -833,7 +850,24 @@ export default function NMainScreenScreen({ navigation }) {
             }
 
             // Add read more link with specific news ID for direct access
-            shareMessage += `Read more at: https://newztok.in/news/${item.id}`;
+            shareMessage += `Read more at: https://www.newztok.com/news/${item.id}\n\n`;
+            
+            // Add image URL to the share message if available
+            const imageUrl = getImageUrlForSharing(item);
+            if (imageUrl) {
+                console.log('🔍 Debug - Adding image URL to share message:', imageUrl);
+                shareMessage += `📸 Image: ${imageUrl}\n\n`;
+            } else if (item.youtubeId) {
+                console.log('🔍 Debug - Adding YouTube URL to share message');
+                shareMessage += `🎥 Video: https://www.youtube.com/watch?v=${item.youtubeId}\n\n`;
+            } else {
+                console.log('🔍 Debug - No image or video URL found');
+            }
+            
+            // Add download links based on platform
+            shareMessage += `📱 Download NewzTok App for more updates!\n\n`;
+            shareMessage += `📍 Android Users: ${ANDROID_STORE_LINK}\n`;
+            shareMessage += `📍 iOS Users: ${IOS_STORE_LINK}`;
 
             // Prepare share options
             const shareOptions = {
@@ -843,22 +877,59 @@ export default function NMainScreenScreen({ navigation }) {
             // Add media URL based on content type
             if (item.youtubeId) {
                 shareOptions.url = `https://www.youtube.com/watch?v=${item.youtubeId}`;
-            } else if (item.featuredImage) {
-                shareOptions.url = item.featuredImage;
+            } else if (imageUrl) {
+                shareOptions.url = imageUrl;
             }
 
-            await Share.share(shareOptions, {
+            const result = await Share.share(shareOptions, {
                 dialogTitle: 'Share News',
                 subject: removeHtmlTags(item.title)
             });
+            
+            if (result.action === Share.sharedAction) {
+                if (result.activityType) {
+                    // shared with activity type of result.activityType
+                    console.log('Shared with activity type:', result.activityType);
+                } else {
+                    // shared
+                    console.log('Shared successfully');
+                }
+            } else if (result.action === Share.dismissedAction) {
+                // dismissed
+                console.log('Share dismissed');
+            }
         } catch (error) {
-            console.error("Error sharing news: ", error);
+            console.error('Error sharing:', error);
             Alert.alert(
                 "Error",
-                "Unable to share the news. Please try again.",
+                "Unable to share. Please try again.",
                 [{ text: "OK" }]
             );
         }
+    };
+
+    // Helper function to get the correct image URL for sharing
+    const getImageUrlForSharing = (item) => {
+        console.log('🔍 Debug - Getting image URL for sharing');
+        console.log('🔍 Debug - Item:', item);
+        
+        // Check different possible image fields
+        if (item.featuredImage) {
+            console.log('🔍 Debug - Found featuredImage:', item.featuredImage);
+            return item.featuredImage;
+        } else if (item.featured_image) {
+            console.log('🔍 Debug - Found featured_image:', item.featured_image);
+            return item.featured_image;
+        } else if (item.thumbnailUrl) {
+            console.log('🔍 Debug - Found thumbnailUrl:', item.thumbnailUrl);
+            return item.thumbnailUrl;
+        } else if (item.rawImagePath) {
+            console.log('🔍 Debug - Found rawImagePath:', item.rawImagePath);
+            return item.rawImagePath;
+        }
+        
+        console.log('🔍 Debug - No image URL found');
+        return null;
     };
 
     const handleFollow = (id) => {
@@ -1161,7 +1232,7 @@ export default function NMainScreenScreen({ navigation }) {
         );
     };
 
-    const renderCard = ({ item }) => {
+    const renderCard = ({ item, index }) => {
         // Log video path for debugging if present
         if (item.videoPath) {
             console.log(`Rendering card for item ${item.id} with video path:`, item.videoPath);
@@ -1176,145 +1247,210 @@ export default function NMainScreenScreen({ navigation }) {
         // Get the date string for display
         const dateStr = formatDate(item.createdAt || item.updatedAt);
         
-        return (
-            <View style={styles.cardWrapper}>
-                <View style={styles.cardHeader}>
-                    <View style={styles.headerLeft}>
-                        {/* <Image source={item.accountImage} style={styles.accountImage} />
-                        <Text style={styles.headerText}>{item.posterName}</Text>
-                        <Image source={item.verifiedIcon} style={styles.verifiedIcon} /> */}
-                    </View>
-                    {/* <TouchableOpacity
-                        style={[styles.followButton, followStatus[item.id] && styles.followedButton]}
-                        onPress={() => handleFollow(item.id)}
-                    >
-                        <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
-                            {followStatus[item.id] ? '✓' : '+'}
-                        </Text>
-                        <Text style={[styles.followButtonText, followStatus[item.id] && styles.followedText]}>
-                            {followStatus[item.id] ? 'Followed' : 'Follow'}
-                        </Text>
-                    </TouchableOpacity> */}
-                </View>
+        // Render big card or small card based on cardType
+        if (item.cardType === 'big') {
+            return (
+                <View style={styles.bigCardWrapper}>
+                    <View style={styles.bigCard}>
+                        <View style={styles.bigCardImageContainer}>
+                            <TouchableOpacity 
+                                style={styles.bigCardTouchable}
+                                activeOpacity={0.9}
+                                onPress={() => onNavigateNews(item)}
+                            >
+                                {item.youtubeId ? (
+                                    <YoutubeIframe
+                                        height={137.45}
+                                        style={styles.bigCardVideo}
+                                        videoId={item.youtubeId}
+                                        allowFullscreen={true}
+                                        autoplay={false}
+                                    />
+                                ) : item.videoPath ? (
+                                    <VideoPlayer videoPath={item.videoPath} size="big" />
+                                ) : item.featuredImage ? (
+                                    <Image 
+                                        source={{ uri: item.featuredImage }}
+                                        style={styles.bigCardImage}
+                                        resizeMode="cover"
+                                        onError={(e) => {
+                                            console.log('Image load error:', e.nativeEvent.error);
+                                            console.log('Failed image URI:', item.featuredImage);
+                                            setImageErrors(prev => ({...prev, [item.id]: true}));
+                                        }}
+                                    />
+                                ) : (
+                                    <View style={styles.bigCardPlaceholder}>
+                                        <Text style={styles.bigCardPlaceholderText}>{item.title.charAt(0).toUpperCase()}</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        </View>
 
-                <View style={styles.card}>
-                    <View style={styles.videoContainer}>
-                        <TouchableOpacity 
-                            style={styles.videoTouchable}
-                            activeOpacity={0.9}
-                            onPress={() => onNavigateNews(item)}
-                        >
-                            {item.youtubeId ? (
-                                <YoutubeIframe
-                                    height={HEIGHT * 0.16}
-                                    style={styles.video}
-                                    videoId={item.youtubeId}
-                                    allowFullscreen={true}
-                                    autoplay={false}
-                                />
-                            ) : item.videoPath ? (
-                                // Add VideoPlayer component for video playback
-                                <>
-                                    <VideoPlayer videoPath={item.videoPath} />
-                                    {__DEV__ && (
-                                        <Text style={styles.debugText}>
-                                            Video path: {item.videoPath && item.videoPath.substring(0, 30)}...
-                                        </Text>
-                                    )}
-                                </>
-                            ) : item.featuredImage ? (
-                                <Image 
-                                    source={{ uri: item.featuredImage }}
-                                    style={styles.featuredImage}
-                                    resizeMode="cover"
-                                    onError={(e) => {
-                                        console.log('Image load error:', e.nativeEvent.error);
-                                        console.log('Failed image URI:', item.featuredImage);
-                                        // Update the imageErrors state
-                                        setImageErrors(prev => ({...prev, [item.id]: true}));
-                                    }}
-                                />
-                            ) : (
-                                // Add a placeholder view for missing images
-                                <View style={styles.placeholderImage}>
-                                    <Text style={styles.placeholderText}>{item.title.charAt(0).toUpperCase()}</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    </View>
+                        <View style={styles.bigCardContent}>
+                            <View style={styles.bigCardTitleRow}>
+                                <Text style={styles.bigCardTitle} numberOfLines={3} ellipsizeMode="tail">{item.title}</Text>
+                                <Text style={styles.bigCardDate}>{dateStr}</Text>
+                            </View>
+                            <Text style={styles.bigCardTime}>{item.time}</Text>
+                        </View>
 
-                    <View style={styles.textContainer}>
-                        <Text style={styles.text} numberOfLines={2} ellipsizeMode="tail">{item.title}</Text>
-                        <Text style={styles.time}>{item.time}</Text>
-                    </View>
-                    
-                    <View style={styles.dateContainer}>
-                        <Text style={styles.dateText}>{dateStr}</Text>
-                    </View>
-
-                    <View style={styles.actionContainer}>
-                        <View style={styles.iconContainer}>
-                            <View style={styles.actionButtonContainer}>
-                                <TouchableOpacity onPress={() => handleLike(item.id)} style={styles.actionButton}>
+                        <View style={styles.bigCardActions}>
+                            <View style={styles.bigCardIconContainer}>
+                                <TouchableOpacity onPress={() => handleLike(item.id)} style={styles.bigCardActionButton}>
                                     <Image
                                         source={reaction[item.id] === "like" ? PRESSLIKE : LIKE}
-                                        style={styles.actionIcon}
+                                        style={styles.bigCardActionIcon}
                                     />
-                                    <Text style={styles.actionCountText}>
+                                    <Text style={styles.bigCardActionText}>
                                         {item.likeCount > 999 ? (item.likeCount / 1000).toFixed(1) + 'k' : item.likeCount || 0}
                                     </Text>
                                 </TouchableOpacity>
-                            </View>
 
-                            <View style={styles.actionButtonContainer}>
-                                <TouchableOpacity onPress={() => handleWhatsAppShare(item)} style={styles.actionButton}>
-                                    <Image source={WHATSAPP} style={styles.actionIcon} />
-                                    <Text style={styles.actionCountText}>Share</Text>
+                                <TouchableOpacity onPress={() => handleWhatsAppShare(item)} style={styles.bigCardActionButton}>
+                                    <Image source={WHATSAPP} style={styles.bigCardActionIcon} />
+                                    <Text style={styles.bigCardActionText}>Share</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity onPress={() => handleCommentPress(item)} style={styles.bigCardActionButton}>
+                                    <Image source={COMMENT} style={styles.bigCardActionIcon} />
+                                    <Text style={styles.bigCardActionText}>Comments</Text>
                                 </TouchableOpacity>
                             </View>
 
-                            <View style={styles.actionButtonContainer}>
-                                <TouchableOpacity onPress={() => handleCommentPress(item)} style={styles.actionButton}>
-                                    <Image source={COMMENT} style={styles.actionIcon} />
-                                    <Text style={styles.actionCountText}>Comments</Text>
+                            <TouchableOpacity 
+                                style={styles.bigCardReadMoreButton}
+                                onPress={() => onNavigateNews(item)}
+                            >
+                                <Text style={styles.bigCardReadMoreText}>Read more</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            );
+        } else {
+            // Small card layout
+            return (
+                <View style={styles.smallCardWrapper}>
+                    <View style={styles.smallCard}>
+                        <View style={styles.smallCardImageContainer}>
+                            <TouchableOpacity 
+                                style={styles.smallCardTouchable}
+                                activeOpacity={0.9}
+                                onPress={() => onNavigateNews(item)}
+                            >
+                                {item.youtubeId ? (
+                                    <YoutubeIframe
+                                        height={72}
+                                        style={styles.smallCardVideo}
+                                        videoId={item.youtubeId}
+                                        allowFullscreen={true}
+                                        autoplay={false}
+                                    />
+                                ) : item.videoPath ? (
+                                    <VideoPlayer videoPath={item.videoPath} size="small" />
+                                ) : item.featuredImage ? (
+                                    <Image 
+                                        source={{ uri: item.featuredImage }}
+                                        style={styles.smallCardImage}
+                                        resizeMode="cover"
+                                        onError={(e) => {
+                                            console.log('Image load error:', e.nativeEvent.error);
+                                            console.log('Failed image URI:', item.featuredImage);
+                                            setImageErrors(prev => ({...prev, [item.id]: true}));
+                                        }}
+                                    />
+                                ) : (
+                                    <View style={styles.smallCardPlaceholder}>
+                                        <Text style={styles.smallCardPlaceholderText}>{item.title.charAt(0).toUpperCase()}</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.smallCardContent}>
+                            <Text style={styles.smallCardTitle} numberOfLines={2} ellipsizeMode="tail">{item.title}</Text>
+                            <Text style={styles.smallCardTime}>{item.time}</Text>
+                            
+                            <View style={styles.smallCardActions}>
+                                <TouchableOpacity onPress={() => handleLike(item.id)} style={styles.smallCardActionButton}>
+                                    <Image
+                                        source={reaction[item.id] === "like" ? PRESSLIKE : LIKE}
+                                        style={styles.smallCardActionIcon}
+                                    />
+                                    <Text style={styles.smallCardActionText}>
+                                        {item.likeCount > 999 ? (item.likeCount / 1000).toFixed(1) + 'k' : item.likeCount || 0}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity onPress={() => handleWhatsAppShare(item)} style={styles.smallCardActionButton}>
+                                    <Image source={WHATSAPP} style={styles.smallCardActionIcon} />
+                                    <Text style={styles.smallCardActionText}>Share</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity onPress={() => handleCommentPress(item)} style={styles.smallCardActionButton}>
+                                    <Image source={COMMENT} style={styles.smallCardActionIcon} />
+                                    <Text style={styles.smallCardActionText}>Comments</Text>
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity 
+                                    style={styles.smallCardReadMoreButton}
+                                    onPress={() => onNavigateNews(item)}
+                                >
+                                    <Text style={styles.smallCardReadMoreText}>Read more</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
-
-                        <TouchableOpacity 
-                            style={styles.readMoreButton}
-                            onPress={() => onNavigateNews(item)}
-                        >
-                            <Text style={styles.readMoreText}>Read more</Text>
-                        </TouchableOpacity>
                     </View>
                 </View>
-            </View>
-        );
+            );
+        }
     };
 
-    // Prepare data with ads interspersed between news items
+    // Prepare data with specific pattern: Big Card → Small Card → Ad → Small Card
     const prepareDataWithAds = (newsItems) => {
         if (!newsItems || newsItems.length === 0) return [];
         
         const dataWithAds = [];
+        let newsIndex = 0;
         
-        // Insert ads after every 6 news items
-        newsItems.forEach((item, index) => {
-            // Add the news item
+        while (newsIndex < newsItems.length) {
+            // Add big card (first item in each group)
+            if (newsIndex < newsItems.length) {
+                dataWithAds.push({
+                    ...newsItems[newsIndex],
+                    itemType: 'news',
+                    cardType: 'big'
+                });
+                newsIndex++;
+            }
+            
+            // Add small card (second item in each group)
+            if (newsIndex < newsItems.length) {
+                dataWithAds.push({
+                    ...newsItems[newsIndex],
+                    itemType: 'news',
+                    cardType: 'small'
+                });
+                newsIndex++;
+            }
+            
+            // Add ad
             dataWithAds.push({
-                ...item,
-                itemType: 'news'
+                id: `ad-${Math.random().toString()}`,
+                itemType: 'ad'
             });
             
-            // Add an ad after every 6 news items
-            if ((index + 1) % 6 === 0) {
+            // Add small card (third item in each group)
+            if (newsIndex < newsItems.length) {
                 dataWithAds.push({
-                    id: `ad-${Math.random().toString()}`,
-                    itemType: 'ad'
+                    ...newsItems[newsIndex],
+                    itemType: 'news',
+                    cardType: 'small'
                 });
+                newsIndex++;
             }
-        });
+        }
         
         return dataWithAds;
     };
@@ -1401,19 +1537,22 @@ export default function NMainScreenScreen({ navigation }) {
         );
     };
 
-    const renderItem = ({ item }) => {
+    const renderItem = ({ item, index }) => {
         // If it's an ad, render the NativeAdComponent
         if (item.itemType === 'ad') {
             return <NativeAdComponent style={styles.adContainer} />;
         }
         
         // Otherwise render a news card
-        return renderCard({ item });
+        return renderCard({ item, index });
     };
 
     // Add WhatsApp share function
     const handleWhatsAppShare = async (item) => {
         try {
+            const ANDROID_STORE_LINK = 'https://play.google.com/store/apps/details?id=com.newztok';
+            const IOS_STORE_LINK = 'https://apps.apple.com/in/app/newztok/id6746141322';
+            
             // Remove HTML tags function
             const removeHtmlTags = (text) => {
                 if (!text) return '';
@@ -1432,7 +1571,24 @@ export default function NMainScreenScreen({ navigation }) {
             }
 
             // Add read more link with specific news ID for direct access
-            shareMessage += `Read more at: https://newztok.in/news/${item.id}`;
+            shareMessage += `Read more at: https://www.newztok.com/news/${item.id}\n\n`;
+            
+            // Add image URL to the share message if available
+            const imageUrl = getImageUrlForSharing(item);
+            if (imageUrl) {
+                console.log('🔍 Debug - Adding image URL to WhatsApp share message:', imageUrl);
+                shareMessage += `📸 Image: ${imageUrl}\n\n`;
+            } else if (item.youtubeId) {
+                console.log('🔍 Debug - Adding YouTube URL to WhatsApp share message');
+                shareMessage += `🎥 Video: https://www.youtube.com/watch?v=${item.youtubeId}\n\n`;
+            } else {
+                console.log('🔍 Debug - No image or video URL found for WhatsApp share');
+            }
+            
+            // Add download links based on platform
+            shareMessage += `📱 Download NewzTok App for more updates!\n\n`;
+            shareMessage += `📍 Android Users: ${ANDROID_STORE_LINK}\n`;
+            shareMessage += `📍 iOS Users: ${IOS_STORE_LINK}`;
 
             // Prepare share options
             const shareOptions = {
@@ -1442,19 +1598,32 @@ export default function NMainScreenScreen({ navigation }) {
             // Add media URL based on content type
             if (item.youtubeId) {
                 shareOptions.url = `https://www.youtube.com/watch?v=${item.youtubeId}`;
-            } else if (item.featuredImage) {
-                shareOptions.url = item.featuredImage;
+            } else if (imageUrl) {
+                shareOptions.url = imageUrl;
             }
 
-            await Share.share(shareOptions, {
+            const result = await Share.share(shareOptions, {
                 dialogTitle: 'Share News',
                 subject: removeHtmlTags(item.title)
             });
+            
+            if (result.action === Share.sharedAction) {
+                if (result.activityType) {
+                    // shared with activity type of result.activityType
+                    console.log('Shared with activity type:', result.activityType);
+                } else {
+                    // shared
+                    console.log('Shared successfully');
+                }
+            } else if (result.action === Share.dismissedAction) {
+                // dismissed
+                console.log('Share dismissed');
+            }
         } catch (error) {
-            console.error("Error sharing news: ", error);
+            console.error('Error sharing:', error);
             Alert.alert(
                 "Error",
-                "Unable to share the news. Please try again.",
+                "Unable to share. Please try again.",
                 [{ text: "OK" }]
             );
         }
@@ -1718,9 +1887,9 @@ const styles = StyleSheet.create({
     },
     adContainer: {
         width: WIDTH * 0.9,
+        height: HEIGHT * 0.15,
         marginVertical: HEIGHT * 0.02,
         alignSelf: 'center',
-        maxHeight: HEIGHT * 0.25,
         borderWidth: 1.5,
         borderColor: RED,
         borderRadius: WIDTH * 0.02,
@@ -1753,6 +1922,38 @@ const styles = StyleSheet.create({
         bottom: 0,
         right: 0,
         borderRadius: WIDTH * 0.015,
+    },
+    // Video player styles for big card
+    bigCardVideoWrapper: {
+        width: 331.44,
+        height: 137.45,
+        position: 'relative',
+        backgroundColor: '#000',
+        borderRadius: WIDTH * 0.015,
+    },
+    bigCardBackgroundVideo: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
+        borderRadius: WIDTH * 0.015,
+    },
+    // Video player styles for small card
+    smallCardVideoWrapper: {
+        width: 111,
+        height: 72,
+        position: 'relative',
+        backgroundColor: '#000',
+        borderRadius: WIDTH * 0.01,
+    },
+    smallCardBackgroundVideo: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        right: 0,
+        borderRadius: WIDTH * 0.01,
     },
     videoPlaceholder: {
         backgroundColor: '#e1e1e1',
@@ -1814,10 +2015,10 @@ const styles = StyleSheet.create({
         marginLeft: WIDTH * 0.01, // Slight offset for the play icon
     },
     socialMediaCard: {
-        height: HEIGHT * 0.085, // Decreased from 0.18 to 0.12
+        height: HEIGHT * 0.06, // Decreased from 0.085 to 0.06
         borderRadius: WIDTH * 0.03,
-        marginVertical: HEIGHT * 0.01, // Decreased from 0.02 to 0.01
-        padding: WIDTH * 0.03, // Decreased from 0.05 to 0.03
+        marginVertical: HEIGHT * 0.008, // Decreased from 0.01 to 0.008
+        padding: WIDTH * 0.02, // Decreased from 0.03 to 0.02
         justifyContent: 'center',
         alignItems: 'center',
         width: WIDTH * 0.9,
@@ -1853,10 +2054,10 @@ const styles = StyleSheet.create({
         zIndex: 3,
     },
     socialMediaText: {
-        fontSize: WIDTH * 0.05,
+        fontSize: WIDTH * 0.04,
         fontFamily: BOLDMONTSERRAT,
         color: WHITE,
-        marginBottom: HEIGHT * 0.015,
+        marginBottom: HEIGHT * 0.008,
         zIndex: 10,
         textAlign: 'center',
         textShadowColor: 'rgba(0, 0, 0, 0.75)',
@@ -1873,11 +2074,11 @@ const styles = StyleSheet.create({
         padding: WIDTH * 0.01,
     },
     iconSpacer: {
-        width: WIDTH * 0.02,
+        width: WIDTH * 0.015,
     },
     socialIcon: {
-        width: WIDTH * 0.06,
-        height: WIDTH * 0.06,
+        width: WIDTH * 0.045,
+        height: WIDTH * 0.045,
         resizeMode: 'contain',
     },
     // Modal styles
@@ -2073,5 +2274,242 @@ const styles = StyleSheet.create({
         height: WIDTH * 0.045,
         backgroundColor: '#e1e9ee',
         borderRadius: WIDTH * 0.02,
+    },
+    // Big Card Styles
+    bigCardWrapper: {
+        marginTop: HEIGHT * 0.01,
+        marginBottom: HEIGHT * 0.015,
+        alignItems: "center",
+        width: "100%",
+    },
+    bigCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        overflow: "hidden",
+        padding: WIDTH * 0.015,
+        paddingBottom: WIDTH * 0.02,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: BORDERCOLOR,
+        width: 360,
+        height: 220,
+        alignSelf: "center",
+    },
+    bigCardImageContainer: {
+        borderRadius: WIDTH * 0.015,
+        overflow: "hidden",
+        marginBottom: HEIGHT * 0.01,
+    },
+    bigCardTouchable: {
+        width: "100%",
+    },
+    bigCardVideo: {
+        width: 331.44,
+        height: 137.45,
+        borderRadius: WIDTH * 0.015,
+    },
+    bigCardImage: {
+        width: 331.44,
+        height: 137.45,
+        borderRadius: WIDTH * 0.015,
+    },
+    bigCardPlaceholder: {
+        width: 331.44,
+        height: 137.45,
+        backgroundColor: '#e1e1e1',
+        justifyContent: "center",
+        alignItems: "center",
+        borderRadius: WIDTH * 0.015,
+    },
+    bigCardPlaceholderText: {
+        fontSize: WIDTH * 0.15,
+        fontFamily: BOLDMONTSERRAT,
+        color: '#a1a1a1',
+        opacity: 0.8
+    },
+    bigCardContent: {
+        flex: 1,
+        justifyContent: 'space-between',
+    },
+    bigCardTitleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: HEIGHT * 0.005,
+    },
+    bigCardTitle: {
+        fontSize: WIDTH * 0.04,
+        fontFamily: BOLDMONTSERRAT,
+        color: BLACK,
+        flex: 1,
+        marginRight: WIDTH * 0.02,
+    },
+    bigCardTime: {
+        fontSize: WIDTH * 0.03,
+        fontFamily: LORA,
+        color: BLACK,
+        marginBottom: HEIGHT * 0.003,
+    },
+    bigCardDate: {
+        fontSize: WIDTH * 0.02,
+        fontFamily: POPPINSLIGHT,
+        color: BLACK,
+        flexShrink: 0,
+        textAlign: 'right',
+    },
+    bigCardActions: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginTop: HEIGHT * 0.01,
+    },
+    bigCardIconContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        flexWrap: "wrap",
+    },
+    bigCardActionButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: 'rgba(240, 240, 240, 0.4)',
+        paddingVertical: HEIGHT * 0.004,
+        paddingHorizontal: WIDTH * 0.015,
+        borderRadius: WIDTH * 0.03,
+        borderWidth: 0.5,
+        borderColor: 'rgba(0, 0, 0, 0.1)',
+        marginRight: WIDTH * 0.015,
+    },
+    bigCardActionIcon: {
+        width: WIDTH * 0.035,
+        height: WIDTH * 0.035,
+        marginRight: WIDTH * 0.008,
+    },
+    bigCardActionText: {
+        fontSize: WIDTH * 0.02,
+        color: BLACK,
+        fontFamily: POPPINSLIGHT,
+    },
+    bigCardReadMoreButton: {
+        backgroundColor: BLUE,
+        paddingVertical: HEIGHT * 0.006,
+        paddingHorizontal: WIDTH * 0.025,
+        borderRadius: WIDTH * 0.015,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    bigCardReadMoreText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.025,
+    },
+    // Small Card Styles
+    smallCardWrapper: {
+        marginTop: HEIGHT * 0.01,
+        marginBottom: HEIGHT * 0.015,
+        alignItems: "center",
+        width: "100%",
+    },
+    smallCard: {
+        backgroundColor: WHITE,
+        borderRadius: WIDTH * 0.015,
+        overflow: "hidden",
+        padding: WIDTH * 0.015,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: BORDERCOLOR,
+        width: 356,
+        height: 88.01,
+        alignSelf: "center",
+        flexDirection: "row",
+    },
+    smallCardImageContainer: {
+        borderRadius: WIDTH * 0.01,
+        overflow: "hidden",
+        marginRight: WIDTH * 0.015,
+    },
+    smallCardTouchable: {
+        width: "100%",
+    },
+    smallCardVideo: {
+        width: 111,
+        height: 72,
+        borderRadius: WIDTH * 0.01,
+    },
+    smallCardImage: {
+        width: 111,
+        height: 72,
+        borderRadius: WIDTH * 0.01,
+    },
+    smallCardPlaceholder: {
+        width: 111,
+        height: 72,
+        backgroundColor: '#e1e1e1',
+        justifyContent: "center",
+        alignItems: "center",
+        borderRadius: WIDTH * 0.01,
+    },
+    smallCardPlaceholderText: {
+        fontSize: WIDTH * 0.08,
+        fontFamily: BOLDMONTSERRAT,
+        color: '#a1a1a1',
+        opacity: 0.8
+    },
+    smallCardContent: {
+        flex: 1,
+        justifyContent: 'space-between',
+    },
+    smallCardTitle: {
+        fontSize: WIDTH * 0.035,
+        fontFamily: BOLDMONTSERRAT,
+        color: BLACK,
+        marginBottom: HEIGHT * 0.003,
+    },
+    smallCardTime: {
+        fontSize: WIDTH * 0.025,
+        fontFamily: LORA,
+        color: BLACK,
+        marginBottom: HEIGHT * 0.005,
+    },
+    smallCardActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        flexWrap: "wrap",
+    },
+    smallCardActionButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: 'rgba(240, 240, 240, 0.4)',
+        paddingVertical: HEIGHT * 0.003,
+        paddingHorizontal: WIDTH * 0.01,
+        borderRadius: WIDTH * 0.02,
+        borderWidth: 0.5,
+        borderColor: 'rgba(0, 0, 0, 0.1)',
+        marginRight: WIDTH * 0.01,
+    },
+    smallCardActionIcon: {
+        width: WIDTH * 0.025,
+        height: WIDTH * 0.025,
+        marginRight: WIDTH * 0.005,
+    },
+    smallCardActionText: {
+        fontSize: WIDTH * 0.018,
+        color: BLACK,
+        fontFamily: POPPINSLIGHT,
+    },
+    smallCardReadMoreButton: {
+        backgroundColor: BLUE,
+        paddingVertical: HEIGHT * 0.003,
+        paddingHorizontal: WIDTH * 0.01,
+        borderRadius: WIDTH * 0.02,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: WIDTH * 0.01,
+    },
+    smallCardReadMoreText: {
+        color: WHITE,
+        fontFamily: POPPINSMEDIUM,
+        fontSize: WIDTH * 0.02,
     },
 });

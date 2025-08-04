@@ -189,6 +189,38 @@ const removeHtmlTags = (html) => {
     return html.replace(/<[^>]*>?/gm, '');
 };
 
+// Helper function to get the correct image URL for sharing
+const getImageUrlForSharing = (item) => {
+    console.log('🔍 Debug - Getting image URL for sharing');
+    console.log('🔍 Debug - Item:', item);
+    
+    // Check different possible image fields
+    if (item.featuredImage) {
+        console.log('🔍 Debug - Found featuredImage:', item.featuredImage);
+        return item.featuredImage;
+    } else if (item.featured_image) {
+        console.log('🔍 Debug - Found featured_image:', item.featured_image);
+        return item.featured_image;
+    } else if (item.thumbnailUrl) {
+        console.log('🔍 Debug - Found thumbnailUrl:', item.thumbnailUrl);
+        return item.thumbnailUrl;
+    } else if (item.rawImagePath) {
+        console.log('🔍 Debug - Found rawImagePath:', item.rawImagePath);
+        return item.rawImagePath;
+    }
+
+    console.log('🔍 Debug - No image URL found');
+    return null;
+};
+
+// Static test images for development (limited to 4 images)
+const testAdditionalImages = [
+    'https://images.unsplash.com/photo-1631867675167-90a456a90863?q=80&w=1000&auto=format&fit=crop', // News/Report image
+    'https://images.unsplash.com/photo-1579353977828-2a4eab540b9a?q=80&w=1000&auto=format&fit=crop', // Event image
+    'https://images.unsplash.com/photo-1566275529824-cca6d008f3da?q=80&w=1000&auto=format&fit=crop', // People image
+    'https://images.unsplash.com/photo-1587474260584-136574528ed5?q=80&w=1000&auto=format&fit=crop'  // Location image
+];
+
 export default DistrictNews = ({ route, navigation }) => {
     const { newsData } = route.params;
     console.log('Received newsData in HomeNews:', newsData);
@@ -518,6 +550,9 @@ export default DistrictNews = ({ route, navigation }) => {
 
     const handleWhatsAppShare = async () => {
         try {
+            const ANDROID_STORE_LINK = 'https://play.google.com/store/apps/details?id=com.newztok';
+            const IOS_STORE_LINK = 'https://apps.apple.com/in/app/newztok/id6746141322';
+
             let shareMessage = `${removeHtmlTags(newsData.headline)}\n\n`;
             
             if (newsData.content) {
@@ -528,29 +563,61 @@ export default DistrictNews = ({ route, navigation }) => {
                 shareMessage += `${contentPreview}\n\n`;
             }
 
-            shareMessage += `Read more at: https://newztok.in/news/${newsData.id}`;
+            // Add read more link with specific news ID for direct access
+            shareMessage += `Read more at: https://www.newztok.com/news/${newsData.id}\n\n`;
+
+            // Add image URL to the share message if available
+            const imageUrl = getImageUrlForSharing(newsData);
+            if (imageUrl) {
+                console.log('🔍 Debug - Adding image URL to WhatsApp share message:', imageUrl);
+                shareMessage += `📸 Image: ${imageUrl}\n\n`;
+            } else if (newsData.youtubeId) {
+                console.log('🔍 Debug - Adding YouTube URL to WhatsApp share message');
+                shareMessage += `🎥 Video: https://www.youtube.com/watch?v=${newsData.youtubeId}\n\n`;
+            } else {
+                console.log('🔍 Debug - No image or video URL found for WhatsApp share');
+            }
+
+            // Add download links based on platform
+            shareMessage += `📱 Download NewzTok App for more updates!\n\n`;
+            shareMessage += `📍 Android Users: ${ANDROID_STORE_LINK}\n`;
+            shareMessage += `📍 iOS Users: ${IOS_STORE_LINK}`;
 
             const shareOptions = {
                 message: shareMessage,
             };
 
+            // Add media URL based on content type
             if (contentType === 'youtube' && videoId) {
                 shareOptions.url = `https://www.youtube.com/watch?v=${videoId}`;
             } else if (contentType === 'video' && newsData.videoPath) {
                 shareOptions.url = processUrl(newsData.videoPath);
-            } else if (fullImageUrl) {
-                shareOptions.url = fullImageUrl;
+            } else if (imageUrl) {
+                shareOptions.url = imageUrl;
             }
 
-            await Share.share(shareOptions, {
+            const result = await Share.share(shareOptions, {
                 dialogTitle: 'Share News',
                 subject: removeHtmlTags(newsData.headline)
             });
+
+            if (result.action === Share.sharedAction) {
+                if (result.activityType) {
+                    // shared with activity type of result.activityType
+                    console.log('Shared with activity type:', result.activityType);
+                } else {
+                    // shared
+                    console.log('Shared successfully');
+                }
+            } else if (result.action === Share.dismissedAction) {
+                // dismissed
+                console.log('Share dismissed');
+            }
         } catch (error) {
-            console.error("Error sharing news: ", error);
+            console.error('Error sharing:', error);
             Alert.alert(
                 "Error",
-                "Unable to share the news. Please try again.",
+                "Unable to share. Please try again.",
                 [{ text: "OK" }]
             );
         }
@@ -1102,15 +1169,60 @@ export default DistrictNews = ({ route, navigation }) => {
                         </View>
 
                         {contentHasHtml ? (
-                                <HTML 
-                            source={{ html: content }} 
-                            contentWidth={WIDTH * 0.9}
-                            tagsStyles={htmlStyles}
-                            containerStyle={styles.htmlContent}
-                        />
-                    ) : (
-                        <Text style={styles.content}>{content}</Text>
-                    )}
+                            <>
+                                {content.split('</p>').map((paragraph, index) => {
+                                    // Skip empty paragraphs
+                                    if (!paragraph.trim()) return null;
+                                    
+                                    // Add back the closing tag that was removed by split
+                                    const fullParagraph = `${paragraph}</p>`;
+                                    
+                                    return (
+                                        <View key={index}>
+                                            <HTML 
+                                                source={{ html: fullParagraph }} 
+                                                contentWidth={WIDTH * 0.9}
+                                                tagsStyles={htmlStyles}
+                                                containerStyle={styles.htmlContent}
+                                            />
+                                            {/* Only show images for first 4 paragraphs */}
+                                            {testAdditionalImages[index] && index < 4 && (
+                                                <View style={styles.additionalImageContainer}>
+                                                    <Image 
+                                                        source={{ uri: testAdditionalImages[index] }}
+                                                        style={styles.additionalImage}
+                                                        resizeMode="cover"
+                                                        onError={(e) => {
+                                                            console.log('Additional image load error:', e.nativeEvent.error);
+                                                            const imageUrl = newsData.additionalImages[index];
+                                                            if (imageUrl) {
+                                                                let fixedUri = imageUrl;
+                                                                if (imageUrl.includes('/uploads/')) {
+                                                                    fixedUri = `${BASE_URL}${imageUrl.split('/uploads/')[1]}`;
+                                                                } 
+                                                                else if (imageUrl.includes('/images/')) {
+                                                                    fixedUri = `${BASE_URL}uploads/images/${imageUrl.split('/images/')[1]}`;
+                                                                }
+                                                                else if (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.png') || imageUrl.endsWith('.jpeg')) {
+                                                                    const filename = imageUrl.split('/').pop();
+                                                                    fixedUri = `${BASE_URL}uploads/images/${filename}`;
+                                                                }
+                                                                fixedUri = fixedUri.replace(/([^:])\/\//g, '$1/');
+                                                                e.currentTarget.setNativeProps({
+                                                                    source: [{ uri: fixedUri }]
+                                                                });
+                                                            }
+                                                        }}
+                                                    />
+                                                </View>
+                                            )}
+                                        </View>
+                                    );
+                                })}
+                            </>
+                        ) : (
+                            <Text style={styles.content}>{content}</Text>
+                        )}
                 </ScrollView>
             )}
 
@@ -1632,5 +1744,16 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    additionalImageContainer: {
+        width: '100%',
+        marginVertical: HEIGHT * 0.01,
+        borderRadius: WIDTH * 0.025,
+        overflow: 'hidden',
+    },
+    additionalImage: {
+        width: '100%',
+        height: HEIGHT * 0.25,
+        borderRadius: WIDTH * 0.025,
     },
 });

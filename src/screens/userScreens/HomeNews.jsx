@@ -189,6 +189,38 @@ const removeHtmlTags = (html) => {
     return html.replace(/<[^>]*>?/gm, '');
 };
 
+// Helper function to get the correct image URL for sharing
+const getImageUrlForSharing = (item) => {
+    console.log('🔍 Debug - Getting image URL for sharing');
+    console.log('🔍 Debug - Item:', item);
+    
+    // Check different possible image fields
+    if (item.featuredImage) {
+        console.log('🔍 Debug - Found featuredImage:', item.featuredImage);
+        return item.featuredImage;
+    } else if (item.featured_image) {
+        console.log('🔍 Debug - Found featured_image:', item.featured_image);
+        return item.featured_image;
+    } else if (item.thumbnailUrl) {
+        console.log('🔍 Debug - Found thumbnailUrl:', item.thumbnailUrl);
+        return item.thumbnailUrl;
+    } else if (item.rawImagePath) {
+        console.log('🔍 Debug - Found rawImagePath:', item.rawImagePath);
+        return item.rawImagePath;
+    }
+    
+    console.log('🔍 Debug - No image URL found');
+    return null;
+};
+
+// Static test images for development (limited to 4 images)
+const testAdditionalImages = [
+    'https://images.unsplash.com/photo-1631867675167-90a456a90863?q=80&w=1000&auto=format&fit=crop', // News/Report image
+    'https://images.unsplash.com/photo-1579353977828-2a4eab540b9a?q=80&w=1000&auto=format&fit=crop', // Event image
+    'https://images.unsplash.com/photo-1566275529824-cca6d008f3da?q=80&w=1000&auto=format&fit=crop', // People image
+    'https://images.unsplash.com/photo-1587474260584-136574528ed5?q=80&w=1000&auto=format&fit=crop'  // Location image
+];
+
 export default HomeNews = ({ route, navigation }) => {
     const { newsData } = route.params;
     console.log('Received newsData in HomeNews:', newsData);
@@ -514,34 +546,54 @@ export default HomeNews = ({ route, navigation }) => {
 
     const handleWhatsAppShare = async () => {
         try {
-            let shareMessage = `${removeHtmlTags(newsData.headline)}\n\n`;
+            const ANDROID_STORE_LINK = 'https://play.google.com/store/apps/details?id=com.newztok';
+            const IOS_STORE_LINK = 'https://apps.apple.com/in/app/newztok/id6746141322';
+            const WEB_URL = 'https://www.newztok.com';
             
+            // Create share message with title and content preview
+            let contentPreview = '';
             if (newsData.content) {
                 const cleanContent = removeHtmlTags(newsData.content);
-                const contentPreview = cleanContent.length > 100 
-                    ? cleanContent.substring(0, 100) + '...' 
-                    : cleanContent;
-                shareMessage += `${contentPreview}\n\n`;
+                contentPreview = cleanContent.length > 100 
+                    ? cleanContent.substring(0, 100) + '...\n\n' 
+                    : cleanContent + '\n\n';
             }
 
-            shareMessage += `Read more at: https://newztok.in/news/${newsData.id}`;
+            // Construct the full share message with store links and web URL
+            const shareMessage = `${removeHtmlTags(newsData.headline)}\n\n` +
+                               `${contentPreview}` +
+                               `Read More at: ${WEB_URL}/news/${newsData.id}\n\n` +
+                               `📱 Download NewzTok App for more updates!\n\n` +
+                               `📍 Android Users: ${ANDROID_STORE_LINK}\n` +
+                               `📍 iOS Users: ${IOS_STORE_LINK}`;
 
-            const shareOptions = {
-                message: shareMessage,
-            };
-
+            // Prepare share options with appropriate media URL
+            let mediaUrl = `${WEB_URL}/news/${newsData.id}`; // Default to web URL
+            
+            // If there's media content, use that URL instead
             if (contentType === 'youtube' && videoId) {
-                shareOptions.url = `https://www.youtube.com/watch?v=${videoId}`;
+                mediaUrl = `https://www.youtube.com/watch?v=${videoId}`;
             } else if (contentType === 'video' && newsData.videoPath) {
-                shareOptions.url = processUrl(newsData.videoPath);
+                mediaUrl = processUrl(newsData.videoPath);
             } else if (fullImageUrl) {
-                shareOptions.url = fullImageUrl;
+                mediaUrl = fullImageUrl;
             }
 
-            await Share.share(shareOptions, {
-                dialogTitle: 'Share News',
-                subject: removeHtmlTags(newsData.headline)
+            // Share with platform-specific options
+            const result = await Share.share({
+                message: shareMessage,
+                url: mediaUrl // This will be used on iOS
             });
+
+            if (result.action === Share.sharedAction) {
+                if (result.activityType) {
+                    console.log('Shared with activity type:', result.activityType);
+                } else {
+                    console.log('Shared successfully');
+                }
+            } else if (result.action === Share.dismissedAction) {
+                console.log('Share dismissed');
+            }
         } catch (error) {
             console.error("Error sharing news: ", error);
             Alert.alert(
@@ -1089,12 +1141,57 @@ export default HomeNews = ({ route, navigation }) => {
                     </View>
 
                     {contentHasHtml ? (
-                        <HTML 
-                            source={{ html: content }} 
-                            contentWidth={WIDTH * 0.9}
-                            tagsStyles={htmlStyles}
-                            containerStyle={styles.htmlContent}
-                        />
+                        <>
+                            {content.split('</p>').map((paragraph, index) => {
+                                // Skip empty paragraphs
+                                if (!paragraph.trim()) return null;
+                                
+                                // Add back the closing tag that was removed by split
+                                const fullParagraph = `${paragraph}</p>`;
+                                
+                                return (
+                                    <View key={index}>
+                                        <HTML 
+                                            source={{ html: fullParagraph }} 
+                                            contentWidth={WIDTH * 0.9}
+                                            tagsStyles={htmlStyles}
+                                            containerStyle={styles.htmlContent}
+                                        />
+                                        {/* Only show images for first 4 paragraphs */}
+                                        {testAdditionalImages[index] && index < 4 && (
+                                            <View style={styles.additionalImageContainer}>
+                                                <Image 
+                                                    source={{ uri: testAdditionalImages[index] }}
+                                                    style={styles.additionalImage}
+                                                    resizeMode="cover"
+                                                    onError={(e) => {
+                                                        console.log('Additional image load error:', e.nativeEvent.error);
+                                                        const imageUrl = newsData.additionalImages[index];
+                                                        if (imageUrl) {
+                                                            let fixedUri = imageUrl;
+                                                            if (imageUrl.includes('/uploads/')) {
+                                                                fixedUri = `${BASE_URL}${imageUrl.split('/uploads/')[1]}`;
+                                                            } 
+                                                            else if (imageUrl.includes('/images/')) {
+                                                                fixedUri = `${BASE_URL}uploads/images/${imageUrl.split('/images/')[1]}`;
+                                                            }
+                                                            else if (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.png') || imageUrl.endsWith('.jpeg')) {
+                                                                const filename = imageUrl.split('/').pop();
+                                                                fixedUri = `${BASE_URL}uploads/images/${filename}`;
+                                                            }
+                                                            fixedUri = fixedUri.replace(/([^:])\/\//g, '$1/');
+                                                            e.currentTarget.setNativeProps({
+                                                                source: [{ uri: fixedUri }]
+                                                            });
+                                                        }
+                                                    }}
+                                                />
+                                            </View>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </>
                     ) : (
                         <Text style={styles.content}>{content}</Text>
                     )}
@@ -1619,5 +1716,16 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    additionalImageContainer: {
+        width: '100%',
+        marginVertical: HEIGHT * 0.01,
+        borderRadius: WIDTH * 0.025,
+        overflow: 'hidden',
+    },
+    additionalImage: {
+        width: '100%',
+        height: HEIGHT * 0.25,
+        borderRadius: WIDTH * 0.025,
     },
 }); 
