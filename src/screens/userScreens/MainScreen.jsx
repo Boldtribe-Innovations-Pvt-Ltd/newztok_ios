@@ -13,6 +13,7 @@ import { MyLoader } from "../../components/commonComponents/MyLoader";
 import { WIDTH, HEIGHT } from "../../constants/config";
 import { BOLDMONTSERRAT, LORA, POPPINSLIGHT, POPPINSMEDIUM } from "../../constants/fontPath";
 import NativeAdComponent from "../../components/ads/NativeAdComponent";
+import PopoverAd from "../../components/ads/PopoverAd";
 import LinearGradient from "react-native-linear-gradient";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getObjByKey, getStringByKey } from "../../utils/Storage";
@@ -286,13 +287,20 @@ export default function NMainScreenScreen({ navigation }) {
     const [imageErrors, setImageErrors] = useState({});
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [showLoginAlert, setShowLoginAlert] = useState(false);
-    const [updateAlertVisible, setUpdateAlertVisible] = useState(true); // Add state for update alert - start as true to trigger version check
+    const [updateAlertVisible, setUpdateAlertVisible] = useState(false); // Start as false - UpdateAlert will check version and show if needed
     const [commentModalVisible, setCommentModalVisible] = useState(false);
     const [currentNewsItem, setCurrentNewsItem] = useState(null);
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    
+    // PopoverAd states
+    const [showAd, setShowAd] = useState(false);
+    const [pageCount, setPageCount] = useState(0);
+    const [lastAdShowTime, setLastAdShowTime] = useState(0);
+    const pageThreshold = 5; // Show ad after every 5th page
+    const adCooldown = 30 * 1000; // 30 seconds cooldown between ads
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -580,24 +588,120 @@ export default function NMainScreenScreen({ navigation }) {
         fetchNewsData();
         checkLoginStatus();
         initializeLikedPosts();
+        checkForUpdates();
     }, []);
 
-    // Add useEffect for version control
-    useEffect(() => {
-        console.log("🚀 MainScreen mounted - UpdateAlert visible:", updateAlertVisible);
-        console.log("📱 Checking for app updates...");
-        
-        // Force the UpdateAlert to check for updates when component mounts
-        if (updateAlertVisible) {
-            console.log("🔍 Triggering version check in UpdateAlert");
-        }
-    }, [updateAlertVisible]);
+
 
     // Add onRefresh handler
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
         fetchNewsData(true);
     }, []);
+
+    // PopoverAd handling functions
+    const handleAdClose = () => {
+        setShowAd(false);
+        setPageCount(0); // Reset page count after ad is closed
+        // Don't reset lastAdShowTime - let the cooldown continue
+    };
+
+    const handleMomentumScrollEnd = (event) => {
+        // Only count page scroll if not currently showing ad
+        if (!showAd) {
+            const currentScrollY = event.nativeEvent.contentOffset.y;
+            
+            // Calculate which page we're on based on scroll position
+            // Each page contains 4 items, so we can estimate page number
+            const estimatedPageNumber = Math.round(currentScrollY / (HEIGHT * 0.8));
+            
+            if (estimatedPageNumber > pageCount) {
+                const newPageCount = pageCount + 1;
+                setPageCount(newPageCount);
+                
+                console.log("🎯 PopoverAd: Page count:", newPageCount, "of", pageThreshold, "| Estimated page:", estimatedPageNumber);
+                
+                // Show ad after every 5th page, but respect cooldown period
+                if (newPageCount >= pageThreshold) {
+                    const now = Date.now();
+                    const timeSinceLastAd = now - lastAdShowTime;
+                    
+                    if (timeSinceLastAd > adCooldown) {
+                        console.log("🎯 PopoverAd: Page threshold reached (5 pages), showing ad");
+                        setShowAd(true);
+                        setLastAdShowTime(now);
+                    } else {
+                        console.log("🎯 PopoverAd: Cooldown active, skipping ad. Time remaining:", Math.ceil((adCooldown - timeSinceLastAd) / 1000), "seconds");
+                        setPageCount(0); // Reset count but don't show ad
+                    }
+                }
+            }
+        }
+    };
+
+    // Function to check for app updates
+    const checkForUpdates = async () => {
+        try {
+            const url = `${BASE_URL}api/versions/ios`;
+            console.log("Checking iOS version at:", url);
+            
+            const result = await GETNETWORK(url);
+            console.log("Version check result:", result);
+            
+            if (result?.statusCode === 200 || result?.success) {
+                const versionData = result?.data || result;
+                
+                // Handle nested response structure
+                let versionInfo = versionData;
+                if (versionData?.version) {
+                    versionInfo = versionData.version;
+                }
+                
+                // Extract latest version
+                let fetchedLatestVersion = versionInfo?.latestVersion || versionInfo?.latest_version || versionInfo?.version;
+                
+                // Convert to string if it's an object
+                if (typeof fetchedLatestVersion === 'object') {
+                    fetchedLatestVersion = fetchedLatestVersion?.version || fetchedLatestVersion?.number || "Unknown";
+                }
+                
+                fetchedLatestVersion = String(fetchedLatestVersion || "Unknown");
+                
+                // Import IOSVersion from constants
+                const { IOSVersion } = require("../../constants/versionControll");
+                
+                console.log("================== VERSION UPDATE INFO ==================");
+                console.log("📱 Current Version:", IOSVersion);
+                console.log("🆕 Latest Version:", fetchedLatestVersion);
+                console.log("🔍 Version comparison:", {
+                    current: IOSVersion,
+                    latest: fetchedLatestVersion,
+                    isDifferent: fetchedLatestVersion !== IOSVersion,
+                    isValidLatest: fetchedLatestVersion && fetchedLatestVersion !== "Unknown"
+                });
+                console.log("======================================================");
+                
+                // Only show update alert if versions are different and latest version is valid
+                if (IOSVersion && 
+                    fetchedLatestVersion && 
+                    fetchedLatestVersion !== "Unknown" && 
+                    fetchedLatestVersion !== IOSVersion) {
+                    
+                    console.log("✅ UPDATE REQUIRED: Current version", IOSVersion, "-> Latest version", fetchedLatestVersion);
+                    setUpdateAlertVisible(true);
+                } else {
+                    console.log("✅ App is up-to-date or no valid version found.");
+                    setUpdateAlertVisible(false);
+                }
+            } else {
+                console.log("Failed to fetch version data - not showing update modal");
+                setUpdateAlertVisible(false);
+            }
+        } catch (error) {
+            console.error("Failed to check iOS version:", error);
+            setUpdateAlertVisible(false);
+        }
+    };
 
     // Function to check login status
     const checkLoginStatus = async () => {
@@ -813,6 +917,8 @@ export default function NMainScreenScreen({ navigation }) {
 
     // Update onNavigateNews function to pass videoPath to navigation
     const onNavigateNews = (item) => {
+        console.log("🎯 onNavigateNews called for item:", item.id, item.title);
+        
         // Track the view
         handleViewCount(item.id);
         
@@ -1423,7 +1529,7 @@ export default function NMainScreenScreen({ navigation }) {
     };
 
     // Prepare data with specific pattern: Social Media Card → Big Card → Small Card → Ad → Small Card (first page)
-    // Then: Big Card → Small Card → Ad → Small Card (subsequent pages)
+    // Then: Big Card → Small Card → Ad → Spacer → Small Card (subsequent pages)
     const prepareDataWithAds = (newsItems) => {
         if (!newsItems || newsItems.length === 0) return [];
         
@@ -1466,6 +1572,14 @@ export default function NMainScreenScreen({ navigation }) {
                 itemType: 'ad',
                 isFirstAd: adCount === 1
             });
+            
+            // Add spacer from second page onwards to create gap between ad and last small card
+            if (pageCount > 0) {
+                dataWithAds.push({
+                    id: `spacer-${pageCount}`,
+                    itemType: 'spacer'
+                });
+            }
             
             // Add small card (third item in each group)
             if (newsIndex < newsItems.length) {
@@ -1577,6 +1691,11 @@ export default function NMainScreenScreen({ navigation }) {
             return <NativeAdComponent style={adStyle} />;
         }
         
+        // If it's a spacer, render empty space
+        if (item.itemType === 'spacer') {
+            return <View style={styles.spacer} />;
+        }
+        
         // Otherwise render a news card
         return renderCard({ item, index });
     };
@@ -1684,6 +1803,7 @@ export default function NMainScreenScreen({ navigation }) {
                         contentContainerStyle={{ paddingBottom: 20 }}
                         refreshing={refreshing}
                         onRefresh={onRefresh}
+                        onMomentumScrollEnd={handleMomentumScrollEnd}
                         ListEmptyComponent={
                             refreshing ? (
                                 <View>
@@ -1721,25 +1841,38 @@ export default function NMainScreenScreen({ navigation }) {
                 }}
             />
             
-            <UpdateAlert
-                isVisible={updateAlertVisible}
-                forceUpdate={true}
-                forceShow={true} // Force show the modal for testing
-                title="Update Required"
-                message="A new version of the app is available. Please update to continue using the app."
-                textRight="Update"
-                onRequestClose={() => {
-                    console.log("📱 MainScreen: onRequestClose called - Force update active, cannot close");
-                    // Don't allow closing during force update
-                }}
-                onPressLeft={() => {
-                    console.log("📱 MainScreen: onPressLeft called - Force update active, cannot cancel");
-                    // Don't allow canceling during force update
-                }}
-                onPressMiddle={() => {
-                    console.log("🔄 MainScreen: Update button pressed - redirecting to App Store");
-                }}
-            />
+            {updateAlertVisible && (
+                <>
+                    {console.log("🚀 MainScreen: Rendering UpdateAlert with updateAlertVisible =", updateAlertVisible)}
+                    <UpdateAlert
+                        // message={true}
+                        isVisible={updateAlertVisible}
+                        onRequestClose={() => {
+                            // Note: UpdateAlert component will handle force update blocking internally
+                            console.log("📱 MainScreen: onRequestClose called");
+                            // Only set to false if not force update (UpdateAlert will handle this)
+                            setUpdateAlertVisible(false);
+                        }}
+                        onPressLeft={() => {
+                            // Note: UpdateAlert component will handle force update blocking internally
+                            console.log("📱 MainScreen: onPressLeft called");
+                            // Only set to false if not force update (UpdateAlert will handle this)
+                            setUpdateAlertVisible(false);
+                        }}
+                        onPressMiddle={() => {
+                            console.log("🔄 MainScreen: Update button pressed - redirecting to App Store");
+                            // Update button should always work, even in force update mode
+                        }}
+                    />
+                </>
+            )}
+            
+            {/* PopoverAd - Shows after every 7th scroll */}
+            {showAd && (
+                <PopoverAd 
+                    onClose={handleAdClose} 
+                />
+            )}
         </>
     );
 }
@@ -2580,5 +2713,10 @@ const styles = StyleSheet.create({
         color: WHITE,
         fontFamily: POPPINSMEDIUM,
         fontSize: WIDTH * 0.02,
+    },
+    // Spacer style for creating gaps between ad and last small card from second page onwards
+    spacer: {
+        height: HEIGHT * 0.02, // Creates a gap of 2% of screen height
+        width: '100%',
     },
 });

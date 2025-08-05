@@ -14,6 +14,7 @@ import { MyLoader } from "../../components/commonComponents/MyLoader";
 import { WIDTH, HEIGHT } from "../../constants/config";
 import { BOLDMONTSERRAT, LORA, POPPINSLIGHT, POPPINSMEDIUM } from "../../constants/fontPath";
 import NativeAdComponent from "../../components/ads/NativeAdComponent";
+import PopoverAd from "../../components/ads/PopoverAd";
 import LinearGradient from "react-native-linear-gradient";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getObjByKey, getStringByKey } from "../../utils/Storage";
@@ -292,6 +293,13 @@ export default function NationalNewzScreen({ navigation }) {
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    
+    // PopoverAd states
+    const [showAd, setShowAd] = useState(false);
+    const [pageCount, setPageCount] = useState(0);
+    const [lastAdShowTime, setLastAdShowTime] = useState(0);
+    const pageThreshold = 5; // Show ad after every 5th page
+    const adCooldown = 30 * 1000; // 30 seconds cooldown between ads
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -592,6 +600,46 @@ export default function NationalNewzScreen({ navigation }) {
         setRefreshing(true);
         fetchNewsData(true);
     }, []);
+
+    // PopoverAd handling functions
+    const handleAdClose = () => {
+        setShowAd(false);
+        setPageCount(0); // Reset page count after ad is closed
+        // Don't reset lastAdShowTime - let the cooldown continue
+    };
+
+    const handleMomentumScrollEnd = (event) => {
+        // Only count page scroll if not currently showing ad
+        if (!showAd) {
+            const currentScrollY = event.nativeEvent.contentOffset.y;
+            
+            // Calculate which page we're on based on scroll position
+            // Each page contains 4 items, so we can estimate page number
+            const estimatedPageNumber = Math.round(currentScrollY / (HEIGHT * 0.8));
+            
+            if (estimatedPageNumber > pageCount) {
+                const newPageCount = pageCount + 1;
+                setPageCount(newPageCount);
+                
+                console.log("🎯 PopoverAd: Page count:", newPageCount, "of", pageThreshold, "| Estimated page:", estimatedPageNumber);
+                
+                // Show ad after every 5th page, but respect cooldown period
+                if (newPageCount >= pageThreshold) {
+                    const now = Date.now();
+                    const timeSinceLastAd = now - lastAdShowTime;
+                    
+                    if (timeSinceLastAd > adCooldown) {
+                        console.log("🎯 PopoverAd: Page threshold reached (5 pages), showing ad");
+                        setShowAd(true);
+                        setLastAdShowTime(now);
+                    } else {
+                        console.log("🎯 PopoverAd: Cooldown active, skipping ad. Time remaining:", Math.ceil((adCooldown - timeSinceLastAd) / 1000), "seconds");
+                        setPageCount(0); // Reset count but don't show ad
+                    }
+                }
+            }
+        }
+    };
 
     // Function to check login status
     const checkLoginStatus = async () => {
@@ -1524,6 +1572,7 @@ export default function NationalNewzScreen({ navigation }) {
                         contentContainerStyle={{ paddingBottom: 50 }}
                         refreshing={refreshing}
                         onRefresh={onRefresh}
+                        onMomentumScrollEnd={handleMomentumScrollEnd}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={
                             refreshing ? (
@@ -1561,6 +1610,13 @@ export default function NationalNewzScreen({ navigation }) {
                     });
                 }}
             />
+            
+            {/* PopoverAd - Shows after every 5th scroll */}
+            {showAd && (
+                <PopoverAd 
+                    onClose={handleAdClose} 
+                />
+            )}
         </>
     );
 }

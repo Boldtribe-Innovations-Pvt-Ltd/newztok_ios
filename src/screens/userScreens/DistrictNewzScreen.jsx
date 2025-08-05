@@ -12,6 +12,7 @@ import { GETNETWORK, POSTNETWORK } from "../../utils/Network";
 import { WIDTH, HEIGHT } from "../../constants/config";
 import { BOLDMONTSERRAT, LORA, POPPINSLIGHT, POPPINSMEDIUM } from "../../constants/fontPath";
 import NativeAdComponent from "../../components/ads/NativeAdComponent";
+import PopoverAd from "../../components/ads/PopoverAd";
 import HTML from 'react-native-render-html';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getObjByKey, getStringByKey } from "../../utils/Storage";
@@ -304,6 +305,13 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
     const [commentText, setCommentText] = useState('');
     const [comments, setComments] = useState([]);
     const [isFetchingComments, setIsFetchingComments] = useState(false);
+    
+    // PopoverAd states
+    const [showAd, setShowAd] = useState(false);
+    const [pageCount, setPageCount] = useState(0);
+    const [lastAdShowTime, setLastAdShowTime] = useState(0);
+    const pageThreshold = 5; // Show ad after every 5th page
+    const adCooldown = 30 * 1000; // 30 seconds cooldown between ads
 
     // Fetch news for the selected state only
     const fetchStateNews = async (state = selectedState) => {
@@ -676,6 +684,39 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
         setRefreshing(true);
         fetchStateNews(selectedState);
     }, [selectedState, selectedDistrict]);
+
+    // PopoverAd handling functions
+    const handleAdClose = () => {
+        setShowAd(false);
+        setPageCount(0); // Reset page count after ad is closed
+        // Don't reset lastAdShowTime - let the cooldown continue
+    };
+
+    const handleMomentumScrollEnd = (event) => {
+        // Only count page scroll if not currently showing ad
+        if (!showAd) {
+            const currentScrollY = event.nativeEvent.contentOffset.y;
+            
+            // Calculate which page we're on based on scroll position
+            // Each page contains 4 items, so we can estimate page number
+            const estimatedPage = Math.floor(currentScrollY / 200) + 1; // 200 is approximate height per item
+            
+            // Only increment if we've moved to a new page
+            if (estimatedPage > pageCount) {
+                const newPageCount = pageCount + 1;
+                setPageCount(newPageCount);
+                
+                // Check if we should show an ad
+                if (newPageCount >= pageThreshold) {
+                    const now = Date.now();
+                    if (now - lastAdShowTime > adCooldown) {
+                        setShowAd(true);
+                        setLastAdShowTime(now);
+                    }
+                }
+            }
+        }
+    };
 
     // Format time function
     const formatTime = (dateTimeString) => {
@@ -1756,6 +1797,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                         refreshing={refreshing}
                         onRefresh={onRefresh}
                         showsVerticalScrollIndicator={false}
+                        onMomentumScrollEnd={handleMomentumScrollEnd}
                         ListEmptyComponent={
                             refreshing ? (
                                 <View>
@@ -1789,6 +1831,12 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
             />
             
             {renderCommentModal()}
+            
+            {/* PopoverAd Component */}
+            <PopoverAd
+                visible={showAd}
+                onClose={handleAdClose}
+            />
         </>
     );
 };

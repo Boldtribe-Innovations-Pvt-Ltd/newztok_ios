@@ -12,14 +12,25 @@ const NativeAdComponent = ({ style }) => {
   const [imageLoading, setImageLoading] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [imageError, setImageError] = useState(false);
+  const [lastFetchTime, setLastFetchTime] = useState(0);
   const maxRetries = 3;
   const retryTimeoutRef = useRef(null);
+  const cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
 
   // Fallback image - you can replace this with your app's default ad image
   // const fallbackImage = require('../../assets/images/Launchposter.png');
 
   useEffect(() => {
-    fetchAdData();
+    // Check if we need to fetch new data (no cache or cache expired)
+    const now = Date.now();
+    const shouldFetch = !adData || (now - lastFetchTime) > cacheTimeout;
+    
+    if (shouldFetch) {
+      fetchAdData();
+    } else {
+      setLoading(false); // Use cached data
+    }
+    
     return () => {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
@@ -84,6 +95,7 @@ const NativeAdComponent = ({ style }) => {
             
             console.log('Ad data set with redirect URL:', redirectUrl);
             setRetryCount(0);
+            setLastFetchTime(Date.now()); // Update cache timestamp
             
             if (imageUrl) {
               setImageLoading(true);

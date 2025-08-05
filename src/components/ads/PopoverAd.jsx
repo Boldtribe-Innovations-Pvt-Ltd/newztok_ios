@@ -12,11 +12,22 @@ const PopoverAd = ({ onClose }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [lastFetchTime, setLastFetchTime] = useState(0);
   const maxRetries = 3;
   const retryTimeoutRef = useRef(null);
+  const cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
 
   useEffect(() => {
-    fetchAdData();
+    // Check if we need to fetch new data (no cache or cache expired)
+    const now = Date.now();
+    const shouldFetch = (!adData || (now - lastFetchTime) > cacheTimeout) && retryCount === 0;
+    
+    if (shouldFetch) {
+      fetchAdData();
+    } else if (adData) {
+      setLoading(false); // Use cached data
+    }
+    
     return () => {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
@@ -81,6 +92,7 @@ const PopoverAd = ({ onClose }) => {
         redirectUrl: mostRecentAd.redirectUrl
       });
       setRetryCount(0);
+      setLastFetchTime(Date.now()); // Update cache timestamp
       
     } catch (error) {
       console.error('Error fetching ad:', error);
