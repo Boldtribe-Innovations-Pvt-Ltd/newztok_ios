@@ -1209,10 +1209,12 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                         <View style={styles.bigCardContent}>
                             <View style={styles.bigCardTitleRow}>
                                 <Text style={styles.bigCardTitle} numberOfLines={1} ellipsizeMode="tail">{item.title}</Text>
-                                <Text style={styles.bigCardDate}>{dateStr}</Text>
+                                <View style={styles.bigCardDateContainer}>
+                                    <Text style={styles.bigCardDate}>{dateStr}</Text>
+                                    <Text style={styles.bigCardTime}>{item.time}</Text>
+                                </View>
                             </View>
-                            <View style={styles.bigCardTimeLocationRow}>
-                                <Text style={styles.bigCardTime}>{item.time}</Text>
+                            <View style={styles.bigCardLocationRow}>
                                 <Text style={[
                                     styles.bigCardLocationText,
                                     item.isPrimaryDistrict && styles.primaryLocationText
@@ -1302,9 +1304,8 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
 
                         <View style={styles.smallCardContent}>
                             <Text style={styles.smallCardTitle} numberOfLines={2} ellipsizeMode="tail">{item.title}</Text>
-                            <Text style={styles.smallCardTime}>{item.time}</Text>
-                            
-                            <View style={styles.smallCardLocationContainer}>
+                            <View style={styles.smallCardTimeLocationRow}>
+                                <Text style={styles.smallCardTime}>{item.time}</Text>
                                 <Text style={[
                                     styles.smallCardLocationText,
                                     item.isPrimaryDistrict && styles.primaryLocationText
@@ -2019,8 +2020,8 @@ const styles = StyleSheet.create({
     },
     adContainer: {
         width: WIDTH * 0.9,
-        marginTop: HEIGHT * 0.005,
-        marginBottom: HEIGHT * 0.005,
+        marginTop: HEIGHT * 0.008, // Increased from 0.003 to 0.008
+        marginBottom: HEIGHT * 0.015, // Increased from 0.003 to 0.006
         alignSelf: 'center',
         // maxHeight: HEIGHT * 0.25,
         borderWidth: 1.5,
@@ -2288,8 +2289,8 @@ const styles = StyleSheet.create({
     },
     // Big Card Styles
     bigCardWrapper: {
-        marginTop: HEIGHT * 0.01,
-        marginBottom: HEIGHT * 0.015,
+        marginTop: HEIGHT * 0.005, // Decreased from 0.01 to 0.005
+        marginBottom: HEIGHT * 0.008, // Decreased from 0.015 to 0.008
         alignItems: "center",
         width: "100%",
     },
@@ -2348,7 +2349,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: HEIGHT * 0.008,
+        marginBottom: HEIGHT * 0.005,
+    },
+    bigCardDateContainer: {
+        flexShrink: 0,
+        alignItems: 'flex-end',
+    },
+    bigCardLocationRow: {
+        marginBottom: HEIGHT * 0.005,
     },
     bigCardTitle: {
         fontSize: WIDTH * 0.038,
@@ -2359,30 +2367,23 @@ const styles = StyleSheet.create({
         lineHeight: WIDTH * 0.045,
     },
     bigCardTime: {
-        fontSize: WIDTH * 0.03,
-        fontFamily: LORA,
+        fontSize: WIDTH * 0.02, // Match date font size
+        fontFamily: POPPINSLIGHT, // Changed from LORA to POPPINSLIGHT
         color: BLACK,
-        marginRight: WIDTH * 0.02,
+        textAlign: 'right',
     },
     bigCardDate: {
         fontSize: WIDTH * 0.02,
         fontFamily: POPPINSLIGHT,
         color: BLACK,
-        flexShrink: 0,
         textAlign: 'right',
+        marginBottom: HEIGHT * 0.002,
     },
-    bigCardTimeLocationRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: HEIGHT * 0.008,
-        marginTop: HEIGHT * 0.005,
-        justifyContent: 'space-between',
-    },
+
     bigCardLocationText: {
         fontSize: WIDTH * 0.026,
         fontFamily: POPPINSLIGHT,
         color: BLACK,
-        textAlign: 'right',
     },
     bigCardActions: {
         flexDirection: "row",
@@ -2437,8 +2438,8 @@ const styles = StyleSheet.create({
     },
     // Small Card Styles
     smallCardWrapper: {
-        marginTop: HEIGHT * 0.008,
-        marginBottom: HEIGHT * 0.015,
+        marginTop: HEIGHT * 0.005, // Decreased from 0.008 to 0.005
+        marginBottom: HEIGHT * 0.008, // Decreased from 0.015 to 0.008
         alignItems: "center",
         width: "100%",
     },
@@ -2451,7 +2452,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: BORDERCOLOR,
         width: 356,
-        minHeight: 95,
+        minHeight: 88, // Decreased from 95 to 88
         alignSelf: "center",
         flexDirection: "row",
     },
@@ -2500,9 +2501,14 @@ const styles = StyleSheet.create({
     },
     smallCardTime: {
         fontSize: WIDTH * 0.025,
-        fontFamily: LORA,
+        fontFamily: POPPINSLIGHT, // Changed from LORA to POPPINSLIGHT
         color: BLACK,
-        marginBottom: HEIGHT * 0.005,
+        marginRight: WIDTH * 0.015, // Add gap between time and location
+    },
+    smallCardTimeLocationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: HEIGHT * 0.003,
     },
     smallCardLocationContainer: {
         marginBottom: HEIGHT * 0.003,

@@ -12,6 +12,7 @@ export const UpdateAlert = ({
     visible = false,
     isVisible = false, // Support both visible and isVisible props
     forceUpdate = false,
+    forceShow = false, // Add forceShow prop to bypass version check
     title = "Update Available", // Title Prop
     message = "A new version of the app is available. Please update to continue.",
     forceMessage = "Alert!! You need to update, if not the app will not work....",
@@ -173,10 +174,10 @@ export const UpdateAlert = ({
                 console.log("======================================================");
                 
                 // Compare with current version - only show modal if update is needed
-                if (IOSVersion && 
+                if (forceShow || (IOSVersion && 
                     fetchedLatestVersion && 
                     fetchedLatestVersion !== "Unknown" && 
-                    fetchedLatestVersion !== IOSVersion) {
+                    fetchedLatestVersion !== IOSVersion)) {
                     
                     setModalVisible(true);
                     setIsForceUpdate(true);
@@ -300,7 +301,7 @@ export const UpdateAlert = ({
 
                     {/* Buttons */}
                     <View style={styles.buttonContainer}>
-                        {!isForceUpdate && ForceUpdate !== "1" && !apiForceUpdate && (
+                        {!isForceUpdate && !ForceUpdate && !apiForceUpdate && (
                             <Pressable 
                                 style={styles.buttonLeft} 
                                 onPress={() => {

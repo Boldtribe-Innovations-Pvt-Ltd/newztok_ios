@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getObjByKey, getStringByKey } from "../../utils/Storage";
 import Video from 'react-native-video';
 import { MyAlert } from "../../components/commonComponents/MyAlert";
+import { UpdateAlert } from "../../components/commonComponents/UpdateAlert";
 
 console.log('Main Screen - Current BASE_URL:', BASE_URL);
 
@@ -285,6 +286,7 @@ export default function NMainScreenScreen({ navigation }) {
     const [imageErrors, setImageErrors] = useState({});
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [showLoginAlert, setShowLoginAlert] = useState(false);
+    const [updateAlertVisible, setUpdateAlertVisible] = useState(true); // Add state for update alert - start as true to trigger version check
     const [commentModalVisible, setCommentModalVisible] = useState(false);
     const [currentNewsItem, setCurrentNewsItem] = useState(null);
     const [commentText, setCommentText] = useState('');
@@ -579,6 +581,17 @@ export default function NMainScreenScreen({ navigation }) {
         checkLoginStatus();
         initializeLikedPosts();
     }, []);
+
+    // Add useEffect for version control
+    useEffect(() => {
+        console.log("🚀 MainScreen mounted - UpdateAlert visible:", updateAlertVisible);
+        console.log("📱 Checking for app updates...");
+        
+        // Force the UpdateAlert to check for updates when component mounts
+        if (updateAlertVisible) {
+            console.log("🔍 Triggering version check in UpdateAlert");
+        }
+    }, [updateAlertVisible]);
 
     // Add onRefresh handler
     const onRefresh = React.useCallback(() => {
@@ -1290,9 +1303,11 @@ export default function NMainScreenScreen({ navigation }) {
                         <View style={styles.bigCardContent}>
                             <View style={styles.bigCardTitleRow}>
                                 <Text style={styles.bigCardTitle} numberOfLines={3} ellipsizeMode="tail">{item.title}</Text>
-                                <Text style={styles.bigCardDate}>{dateStr}</Text>
+                                <View style={styles.bigCardDateContainer}>
+                                    <Text style={styles.bigCardDate}>{dateStr}</Text>
+                                    <Text style={styles.bigCardTime}>{item.time}</Text>
+                                </View>
                             </View>
-                            <Text style={styles.bigCardTime}>{item.time}</Text>
                         </View>
 
                         <View style={styles.bigCardActions}>
@@ -1407,12 +1422,21 @@ export default function NMainScreenScreen({ navigation }) {
         }
     };
 
-    // Prepare data with specific pattern: Big Card → Small Card → Ad → Small Card
+    // Prepare data with specific pattern: Social Media Card → Big Card → Small Card → Ad → Small Card (first page)
+    // Then: Big Card → Small Card → Ad → Small Card (subsequent pages)
     const prepareDataWithAds = (newsItems) => {
         if (!newsItems || newsItems.length === 0) return [];
         
         const dataWithAds = [];
         let newsIndex = 0;
+        let pageCount = 0;
+        let adCount = 0;
+        
+        // Add Social Media Card only once at the very beginning
+        dataWithAds.push({
+            id: 'social-media-card',
+            itemType: 'social'
+        });
         
         while (newsIndex < newsItems.length) {
             // Add big card (first item in each group)
@@ -1435,10 +1459,12 @@ export default function NMainScreenScreen({ navigation }) {
                 newsIndex++;
             }
             
-            // Add ad
+            // Add ad with first ad identifier
+            adCount++;
             dataWithAds.push({
                 id: `ad-${Math.random().toString()}`,
-                itemType: 'ad'
+                itemType: 'ad',
+                isFirstAd: adCount === 1
             });
             
             // Add small card (third item in each group)
@@ -1450,6 +1476,8 @@ export default function NMainScreenScreen({ navigation }) {
                 });
                 newsIndex++;
             }
+            
+            pageCount++;
         }
         
         return dataWithAds;
@@ -1538,9 +1566,15 @@ export default function NMainScreenScreen({ navigation }) {
     };
 
     const renderItem = ({ item, index }) => {
-        // If it's an ad, render the NativeAdComponent
+        // If it's a social media card, render the social media component
+        if (item.itemType === 'social') {
+            return renderSocialCard();
+        }
+        
+        // If it's an ad, render the NativeAdComponent with different styling for first ad
         if (item.itemType === 'ad') {
-            return <NativeAdComponent style={styles.adContainer} />;
+            const adStyle = item.isFirstAd ? styles.firstAdContainer : styles.adContainer;
+            return <NativeAdComponent style={adStyle} />;
         }
         
         // Otherwise render a news card
@@ -1644,7 +1678,6 @@ export default function NMainScreenScreen({ navigation }) {
                     </View>
                 ) : (
                     <FlatList
-                        ListHeaderComponent={renderSocialCard}
                         data={prepareDataWithAds(newsData)}
                         renderItem={renderItem}
                         keyExtractor={(item) => item.id.toString()}
@@ -1685,6 +1718,26 @@ export default function NMainScreenScreen({ navigation }) {
                     navigation.navigate("LoginSignup", {
                         returnScreen: "MainScreen"
                     });
+                }}
+            />
+            
+            <UpdateAlert
+                isVisible={updateAlertVisible}
+                forceUpdate={true}
+                forceShow={true} // Force show the modal for testing
+                title="Update Required"
+                message="A new version of the app is available. Please update to continue using the app."
+                textRight="Update"
+                onRequestClose={() => {
+                    console.log("📱 MainScreen: onRequestClose called - Force update active, cannot close");
+                    // Don't allow closing during force update
+                }}
+                onPressLeft={() => {
+                    console.log("📱 MainScreen: onPressLeft called - Force update active, cannot cancel");
+                    // Don't allow canceling during force update
+                }}
+                onPressMiddle={() => {
+                    console.log("🔄 MainScreen: Update button pressed - redirecting to App Store");
                 }}
             />
         </>
@@ -1887,12 +1940,24 @@ const styles = StyleSheet.create({
     },
     adContainer: {
         width: WIDTH * 0.9,
-        height: HEIGHT * 0.15,
-        marginVertical: HEIGHT * 0.02,
+        height: HEIGHT * 0.12, // Decreased from 0.15 to 0.12
+        marginVertical: HEIGHT * 0.008, // Reduced margin to decrease gap
         alignSelf: 'center',
         borderWidth: 1.5,
         borderColor: RED,
         borderRadius: WIDTH * 0.02,
+        overflow: 'hidden', // Added to ensure content fits properly
+    },
+    firstAdContainer: {
+        width: WIDTH * 0.9,
+        height: HEIGHT * 0.12,
+        marginTop: HEIGHT * 0.005, // Reduced top margin to move up
+        marginBottom: HEIGHT * 0.008, // Reduced bottom margin
+        alignSelf: 'center',
+        borderWidth: 1.5,
+        borderColor: RED,
+        borderRadius: WIDTH * 0.02,
+        overflow: 'hidden',
     },
     placeholderImage: {
         width: '100%',
@@ -2017,7 +2082,8 @@ const styles = StyleSheet.create({
     socialMediaCard: {
         height: HEIGHT * 0.06, // Decreased from 0.085 to 0.06
         borderRadius: WIDTH * 0.03,
-        marginVertical: HEIGHT * 0.008, // Decreased from 0.01 to 0.008
+        marginTop: HEIGHT * 0.002, // Further reduced top margin to move closer to top
+        marginBottom: HEIGHT * 0.002, // Further reduced bottom margin to minimize gap with big card
         padding: WIDTH * 0.02, // Decreased from 0.03 to 0.02
         justifyContent: 'center',
         alignItems: 'center',
@@ -2277,8 +2343,8 @@ const styles = StyleSheet.create({
     },
     // Big Card Styles
     bigCardWrapper: {
-        marginTop: HEIGHT * 0.01,
-        marginBottom: HEIGHT * 0.015,
+        marginTop: HEIGHT * 0.002, // Further reduced top margin to minimize gap with social media card
+        marginBottom: HEIGHT * 0.008, // Reduced bottom margin
         alignItems: "center",
         width: "100%",
     },
@@ -2345,17 +2411,20 @@ const styles = StyleSheet.create({
         marginRight: WIDTH * 0.02,
     },
     bigCardTime: {
-        fontSize: WIDTH * 0.03,
-        fontFamily: LORA,
+        fontSize: WIDTH * 0.02, // Match date text size
+        fontFamily: POPPINSLIGHT, // Changed from LORA to POPPINSLIGHT
         color: BLACK,
-        marginBottom: HEIGHT * 0.003,
+    },
+    bigCardDateContainer: {
+        flexShrink: 0,
+        alignItems: 'flex-end',
     },
     bigCardDate: {
         fontSize: WIDTH * 0.02,
         fontFamily: POPPINSLIGHT,
         color: BLACK,
-        flexShrink: 0,
         textAlign: 'right',
+        marginBottom: HEIGHT * 0.002,
     },
     bigCardActions: {
         flexDirection: "row",
@@ -2405,8 +2474,8 @@ const styles = StyleSheet.create({
     },
     // Small Card Styles
     smallCardWrapper: {
-        marginTop: HEIGHT * 0.01,
-        marginBottom: HEIGHT * 0.015,
+        marginTop: HEIGHT * 0.008, // Reduced top margin to decrease gap
+        marginBottom: HEIGHT * 0.008, // Reduced bottom margin
         alignItems: "center",
         width: "100%",
     },
@@ -2467,7 +2536,7 @@ const styles = StyleSheet.create({
     },
     smallCardTime: {
         fontSize: WIDTH * 0.025,
-        fontFamily: LORA,
+        fontFamily: POPPINSLIGHT, // Changed from LORA to POPPINSLIGHT
         color: BLACK,
         marginBottom: HEIGHT * 0.005,
     },
