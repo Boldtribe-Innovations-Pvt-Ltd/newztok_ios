@@ -368,22 +368,26 @@ export default function NMainScreenScreen({ navigation }) {
                     const youtubeId = newsItem.youtubeUrl ? extractVideoId(newsItem.youtubeUrl) : 
                                      newsItem.video_link ? extractVideoId(newsItem.video_link) : null;
                     
-                    // Process featuredImage URL
-                    let featuredImage = null;
-                    if (newsItem.featured_image) {
-                        featuredImage = processUrl(newsItem.featured_image);
-                        console.log('Featured Image Path:', featuredImage);
-                    } else if (newsItem.featuredImage) {
-                        featuredImage = processUrl(newsItem.featuredImage);
-                        console.log('Featured Image Path:', featuredImage);
-                    } else if (newsItem.thumbnailUrl) {
-                        featuredImage = processUrl(newsItem.thumbnailUrl);
-                        console.log('Thumbnail URL Path:', featuredImage);
-                    } else if (youtubeId) {
-                        // Use YouTube thumbnail if no featured image
-                        featuredImage = `https://img.youtube.com/vi/${youtubeId}/0.jpg`;
-                        console.log('YouTube Thumbnail Path:', featuredImage);
-                    }
+                                            // Process featuredImage URL with additionalImage fallback
+                        let featuredImage = null;
+                        if (newsItem.featured_image) {
+                            featuredImage = processUrl(newsItem.featured_image);
+                            console.log('Featured Image Path:', featuredImage);
+                        } else if (newsItem.featuredImage) {
+                            featuredImage = processUrl(newsItem.featuredImage);
+                            console.log('Featured Image Path:', featuredImage);
+                        } else if (newsItem.thumbnailUrl) {
+                            featuredImage = processUrl(newsItem.thumbnailUrl);
+                            console.log('Thumbnail URL Path:', featuredImage);
+                        } else if (newsItem.additionalImage) {
+                            // Use additionalImage as fallback
+                            featuredImage = processUrl(newsItem.additionalImage);
+                            console.log('Additional Image Path:', featuredImage);
+                        } else if (youtubeId) {
+                            // Use YouTube thumbnail if no featured image or additionalImage
+                            featuredImage = `https://img.youtube.com/vi/${youtubeId}/0.jpg`;
+                            console.log('YouTube Thumbnail Path:', featuredImage);
+                        }
                     
                     // Extract video path from API response
                     let videoPath = null;
@@ -473,13 +477,14 @@ export default function NMainScreenScreen({ navigation }) {
                         featuredImage: featuredImage,
                         videoPath: videoPath, // Add videoPath
                         contentType: videoPath ? 'video' : (youtubeId ? 'youtube' : 'text'), // Add contentType
-                        rawImagePath: newsItem.featured_image || newsItem.featuredImage || newsItem.thumbnailUrl, // Store original path
+                        rawImagePath: newsItem.featured_image || newsItem.featuredImage || newsItem.thumbnailUrl || newsItem.additionalImage, // Store original path
                         youtubeUrl: newsItem.youtubeUrl, // Keep original URL for sharing
                         video_link: newsItem.video_link, // Keep original video_link for compatibility
                         createdAt: newsItem.createdAt || newsItem.updatedAt || new Date().toISOString(),
                         updatedAt: newsItem.updatedAt || newsItem.createdAt || new Date().toISOString(),
                         approvedAt: newsItem.approvedAt || newsItem.approved_at || newsItem.updatedAt || newsItem.updated_at || newsItem.createdAt || newsItem.created_at,
                         raw_date: newsItem.createdAt || newsItem.created_at || newsItem.updatedAt || newsItem.updated_at, // Keep raw date for sorting
+                        additionalImage: newsItem.additionalImage, // Add additionalImage field
                         likeCount: likeCount || 0 // Add like count
                     };
                 });
@@ -938,6 +943,7 @@ export default function NMainScreenScreen({ navigation }) {
                 updatedAt: item.updatedAt,
                 approvedAt: item.approvedAt,
                 category: item.category,
+                additionalImage: item.additionalImage, // Add this line
                 journalist: {
                     name: item.posterName,
                     profile_image: item.accountImage
@@ -1398,6 +1404,17 @@ export default function NMainScreenScreen({ navigation }) {
                                             setImageErrors(prev => ({...prev, [item.id]: true}));
                                         }}
                                     />
+                                ) : item.additionalImage ? (
+                                    <Image 
+                                        source={{ uri: processUrl(item.additionalImage) }}
+                                        style={styles.bigCardImage}
+                                        resizeMode="cover"
+                                        onError={(e) => {
+                                            console.log('Additional image load error:', e.nativeEvent.error);
+                                            console.log('Failed additional image URI:', item.additionalImage);
+                                            setImageErrors(prev => ({...prev, [item.id]: true}));
+                                        }}
+                                    />
                                 ) : (
                                     <View style={styles.bigCardPlaceholder}>
                                         <Text style={styles.bigCardPlaceholderText}>{item.title.charAt(0).toUpperCase()}</Text>
@@ -1446,6 +1463,22 @@ export default function NMainScreenScreen({ navigation }) {
                                 <Text style={styles.bigCardReadMoreText}>Read more</Text>
                             </TouchableOpacity>
                         </View>
+
+                        {/* Additional Image Section - Show when featuredImage is displayed and additionalImage is also available */}
+                        {item.featuredImage && item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.trim() !== '' && 
+                         !item.featuredImage.includes(item.additionalImage) && (
+                            <View style={styles.bigCardAdditionalImageContainer}>
+                                <Image 
+                                    source={{ uri: processUrl(item.additionalImage) }}
+                                    style={styles.bigCardAdditionalImage}
+                                    resizeMode="cover"
+                                    onError={(e) => {
+                                        console.log('Big card additional image load error:', e.nativeEvent.error);
+                                        console.log('Failed big card additional image URI:', item.additionalImage);
+                                    }}
+                                />
+                            </View>
+                        )}
                     </View>
                 </View>
             );
@@ -1478,6 +1511,17 @@ export default function NMainScreenScreen({ navigation }) {
                                         onError={(e) => {
                                             console.log('Image load error:', e.nativeEvent.error);
                                             console.log('Failed image URI:', item.featuredImage);
+                                            setImageErrors(prev => ({...prev, [item.id]: true}));
+                                        }}
+                                    />
+                                ) : item.additionalImage ? (
+                                    <Image 
+                                        source={{ uri: processUrl(item.additionalImage) }}
+                                        style={styles.smallCardImage}
+                                        resizeMode="cover"
+                                        onError={(e) => {
+                                            console.log('Additional image load error:', e.nativeEvent.error);
+                                            console.log('Failed additional image URI:', item.additionalImage);
                                             setImageErrors(prev => ({...prev, [item.id]: true}));
                                         }}
                                     />
@@ -1522,6 +1566,22 @@ export default function NMainScreenScreen({ navigation }) {
                                 </TouchableOpacity>
                             </View>
                         </View>
+
+                        {/* Additional Image Section - Show when featuredImage is displayed and additionalImage is also available */}
+                        {item.featuredImage && item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.trim() !== '' && 
+                         !item.featuredImage.includes(item.additionalImage) && (
+                            <View style={styles.smallCardAdditionalImageContainer}>
+                                <Image 
+                                    source={{ uri: processUrl(item.additionalImage) }}
+                                    style={styles.smallCardAdditionalImage}
+                                    resizeMode="cover"
+                                    onError={(e) => {
+                                        console.log('Small card additional image load error:', e.nativeEvent.error);
+                                        console.log('Failed small card additional image URI:', item.additionalImage);
+                                    }}
+                                />
+                            </View>
+                        )}
                     </View>
                 </View>
             );
@@ -2718,5 +2778,33 @@ const styles = StyleSheet.create({
     spacer: {
         height: HEIGHT * 0.02, // Creates a gap of 2% of screen height
         width: '100%',
+    },
+    
+    // Additional Image Styles for Big Cards
+    bigCardAdditionalImageContainer: {
+        marginTop: HEIGHT * 0.01,
+        marginHorizontal: WIDTH * 0.03,
+        marginBottom: HEIGHT * 0.01,
+        borderRadius: WIDTH * 0.02,
+        overflow: 'hidden',
+    },
+    bigCardAdditionalImage: {
+        width: '100%',
+        height: HEIGHT * 0.12,
+        borderRadius: WIDTH * 0.02,
+    },
+    
+    // Additional Image Styles for Small Cards
+    smallCardAdditionalImageContainer: {
+        marginTop: HEIGHT * 0.008,
+        marginHorizontal: WIDTH * 0.02,
+        marginBottom: HEIGHT * 0.008,
+        borderRadius: WIDTH * 0.015,
+        overflow: 'hidden',
+    },
+    smallCardAdditionalImage: {
+        width: '100%',
+        height: HEIGHT * 0.08,
+        borderRadius: WIDTH * 0.015,
     },
 });

@@ -11,7 +11,6 @@ import { MyHeader } from '../components/commonComponents/MyHeader';
 import { BLACK, BLUE, RED, WHITE } from '../constants/color';
 import { JournalistTopTabNavigation } from './JournalistTopTabNavigation';
 import PopoverAd from '../components/ads/PopoverAd';
-import { RAMNABAMI } from '../constants/imagePath';
 import TrendingNewzScreen from '../screens/userScreens/TrendingNewzScreen';
 
 const TopTab = createMaterialTopTabNavigator();
@@ -57,10 +56,7 @@ export const UserTopTabNavigation = ({ navigation, route }) => {
     const [currentRouteName, setCurrentRouteName] = useState(null);
     const scrollCountRef = useRef(0); // Global scroll count that persists across tabs
 
-    // Try both methods for ad image source - use RAMNABAMI as fallback
-    const adImageSource = RAMNABAMI || require('../assets/images/Launchposter.png');
 
-    console.log('Ad image source:', adImageSource);
 
     // Function to check if ads should be completely disabled based on current route
     const shouldDisableAds = () => {
@@ -242,8 +238,8 @@ export const UserTopTabNavigation = ({ navigation, route }) => {
                 />
             </TopTab.Navigator>
 
-            {/* Ad Popover */}
-            {showAd && <PopoverAd onClose={handleAdClose} imageSource={adImageSource} />}
+            {/* Ad Popover - Only show when ads are available */}
+            {showAd && <PopoverAd onClose={handleAdClose} />}
         </View>
     );
 };

@@ -219,18 +219,28 @@ const getStoredToken = async () => {
 
 // Helper function to process URLs (images and videos)
 const processUrl = (url) => {
-    if (!url) return null;
+    // Add comprehensive null/undefined checks
+    if (!url || url === null || url === undefined || typeof url !== 'string') {
+        return null;
+    }
+    
+    // Trim whitespace and check if empty
+    const trimmedUrl = url.trim();
+    if (trimmedUrl === '') {
+        return null;
+    }
+    
     // If it's already a full URL (starts with http:// or https://)
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-        return url;
+    if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+        return trimmedUrl;
     }
     // For paths starting with '/uploads'
-    else if (url.startsWith('/uploads')) {
+    else if (trimmedUrl.startsWith('/uploads')) {
         const baseUrlFormatted = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
-        return `${baseUrlFormatted}${url}`;
+        return `${baseUrlFormatted}${trimmedUrl}`;
     }
     // For other paths
-    return url;
+    return trimmedUrl;
 };
 
 // Add NewsSkeleton component before the MainScreen component
@@ -367,7 +377,7 @@ export default function NationalNewzScreen({ navigation }) {
                     const youtubeId = newsItem.youtubeUrl ? extractVideoId(newsItem.youtubeUrl) : 
                                      newsItem.video_link ? extractVideoId(newsItem.video_link) : null;
                     
-                    // Process featuredImage URL
+                    // Process featuredImage URL with additionalImage fallback
                     let featuredImage = null;
                     if (newsItem.featured_image) {
                         featuredImage = processUrl(newsItem.featured_image);
@@ -378,8 +388,12 @@ export default function NationalNewzScreen({ navigation }) {
                     } else if (newsItem.thumbnailUrl) {
                         featuredImage = processUrl(newsItem.thumbnailUrl);
                         console.log('Thumbnail URL Path:', featuredImage);
+                    } else if (newsItem.additionalImage && typeof newsItem.additionalImage === 'string' && newsItem.additionalImage.trim() !== '') {
+                        // Use additionalImage as fallback
+                        featuredImage = processUrl(newsItem.additionalImage);
+                        console.log('Additional Image Path:', featuredImage);
                     } else if (youtubeId) {
-                        // Use YouTube thumbnail if no featured image
+                        // Use YouTube thumbnail if no featured image or additionalImage
                         featuredImage = `https://img.youtube.com/vi/${youtubeId}/0.jpg`;
                         console.log('YouTube Thumbnail Path:', featuredImage);
                     }
@@ -478,13 +492,14 @@ export default function NationalNewzScreen({ navigation }) {
                         featuredImage: featuredImage,
                         videoPath: videoPath, // Add videoPath
                         contentType: videoPath ? 'video' : (youtubeId ? 'youtube' : 'text'), // Add contentType
-                        rawImagePath: newsItem.featured_image || newsItem.featuredImage || newsItem.thumbnailUrl, // Store original path
+                        rawImagePath: newsItem.featured_image || newsItem.featuredImage || newsItem.thumbnailUrl || newsItem.additionalImage, // Store original path
                         youtubeUrl: newsItem.youtubeUrl, // Keep original URL for sharing
                         video_link: newsItem.video_link, // Keep original video_link for compatibility
                         createdAt: newsItem.createdAt || newsItem.updatedAt || new Date().toISOString(),
                         updatedAt: newsItem.updatedAt || newsItem.createdAt || new Date().toISOString(),
                         approvedAt: newsItem.approvedAt || newsItem.approved_at || newsItem.updatedAt || newsItem.updated_at || newsItem.createdAt || newsItem.created_at,
                         raw_date: newsItem.createdAt || newsItem.created_at || newsItem.updatedAt || newsItem.updated_at, // Keep raw date for sorting
+                        additionalImage: newsItem.additionalImage, // Add additionalImage field
                         likeCount: likeCount || 0 // Add like count
                     };
                 });
@@ -822,6 +837,7 @@ export default function NationalNewzScreen({ navigation }) {
                 updatedAt: item.updatedAt,
                 approvedAt: item.approvedAt,
                 category: item.category,
+                additionalImage: item.additionalImage, // Add this line
                 journalist: {
                     name: item.posterName,
                     profile_image: item.accountImage
@@ -1282,6 +1298,17 @@ export default function NationalNewzScreen({ navigation }) {
                                             setImageErrors(prev => ({...prev, [item.id]: true}));
                                         }}
                                     />
+                                ) : (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.trim() !== '') ? (
+                                    <Image 
+                                        source={{ uri: processUrl(item.additionalImage) }}
+                                        style={styles.bigCardImage}
+                                        resizeMode="cover"
+                                        onError={(e) => {
+                                            console.log('Additional image load error:', e.nativeEvent.error);
+                                            console.log('Failed additional image URI:', item.additionalImage);
+                                            setImageErrors(prev => ({...prev, [item.id]: true}));
+                                        }}
+                                    />
                                 ) : (
                                     <View style={styles.bigCardPlaceholder}>
                                         <Text style={styles.bigCardPlaceholderText}>{item.title.charAt(0).toUpperCase()}</Text>
@@ -1328,6 +1355,22 @@ export default function NationalNewzScreen({ navigation }) {
                                 <Text style={styles.bigCardReadMoreText}>Read more</Text>
                             </TouchableOpacity>
                         </View>
+
+                        {/* Additional Image Section - Show when featuredImage is displayed and additionalImage is also available */}
+                        {item.featuredImage && item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.trim() !== '' && 
+                         !item.featuredImage.includes(item.additionalImage) && processUrl(item.additionalImage) && (
+                            <View style={styles.bigCardAdditionalImageContainer}>
+                                <Image 
+                                    source={{ uri: processUrl(item.additionalImage) }}
+                                    style={styles.bigCardAdditionalImage}
+                                    resizeMode="cover"
+                                    onError={(e) => {
+                                        console.log('Big card additional image load error:', e.nativeEvent.error);
+                                        console.log('Failed big card additional image URI:', item.additionalImage);
+                                    }}
+                                />
+                            </View>
+                        )}
                     </View>
                 </View>
             );
@@ -1360,6 +1403,17 @@ export default function NationalNewzScreen({ navigation }) {
                                         onError={(e) => {
                                             console.log('Image load error:', e.nativeEvent.error);
                                             console.log('Failed image URI:', item.featuredImage);
+                                            setImageErrors(prev => ({...prev, [item.id]: true}));
+                                        }}
+                                    />
+                                ) : (item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.trim() !== '') ? (
+                                    <Image 
+                                        source={{ uri: processUrl(item.additionalImage) }}
+                                        style={styles.smallCardImage}
+                                        resizeMode="cover"
+                                        onError={(e) => {
+                                            console.log('Additional image load error:', e.nativeEvent.error);
+                                            console.log('Failed additional image URI:', item.additionalImage);
                                             setImageErrors(prev => ({...prev, [item.id]: true}));
                                         }}
                                     />
@@ -1404,6 +1458,22 @@ export default function NationalNewzScreen({ navigation }) {
                                 </TouchableOpacity>
                             </View>
                         </View>
+
+                        {/* Additional Image Section - Show when featuredImage is displayed and additionalImage is also available */}
+                        {item.featuredImage && item.additionalImage && typeof item.additionalImage === 'string' && item.additionalImage.trim() !== '' && 
+                         !item.featuredImage.includes(item.additionalImage) && processUrl(item.additionalImage) && (
+                            <View style={styles.smallCardAdditionalImageContainer}>
+                                <Image 
+                                    source={{ uri: processUrl(item.additionalImage) }}
+                                    style={styles.smallCardAdditionalImage}
+                                    resizeMode="cover"
+                                    onError={(e) => {
+                                        console.log('Small card additional image load error:', e.nativeEvent.error);
+                                        console.log('Failed small card additional image URI:', item.additionalImage);
+                                    }}
+                                />
+                            </View>
+                        )}
                     </View>
                 </View>
             );
@@ -2470,5 +2540,33 @@ const styles = StyleSheet.create({
         height: WIDTH * 0.045,
         backgroundColor: '#e1e9ee',
         borderRadius: WIDTH * 0.02,
+    },
+    
+    // Additional Image Styles for Big Cards
+    bigCardAdditionalImageContainer: {
+        marginTop: HEIGHT * 0.01,
+        marginHorizontal: WIDTH * 0.03,
+        marginBottom: HEIGHT * 0.01,
+        borderRadius: WIDTH * 0.02,
+        overflow: 'hidden',
+    },
+    bigCardAdditionalImage: {
+        width: '100%',
+        height: HEIGHT * 0.12,
+        borderRadius: WIDTH * 0.02,
+    },
+    
+    // Additional Image Styles for Small Cards
+    smallCardAdditionalImageContainer: {
+        marginTop: HEIGHT * 0.008,
+        marginHorizontal: WIDTH * 0.02,
+        marginBottom: HEIGHT * 0.008,
+        borderRadius: WIDTH * 0.015,
+        overflow: 'hidden',
+    },
+    smallCardAdditionalImage: {
+        width: '100%',
+        height: HEIGHT * 0.08,
+        borderRadius: WIDTH * 0.015,
     },
 });

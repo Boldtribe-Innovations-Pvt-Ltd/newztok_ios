@@ -822,6 +822,7 @@ export default function TrendingNewzScreen({ navigation }) {
                 updatedAt: item.updatedAt,
                 approvedAt: item.approvedAt,
                 category: item.category,
+                additionalImage: item.additionalImage, // Add this line
                 journalist: {
                     name: item.posterName,
                     profile_image: item.accountImage

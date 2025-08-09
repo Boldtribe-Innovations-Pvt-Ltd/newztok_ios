@@ -213,19 +213,24 @@ const getImageUrlForSharing = (item) => {
     return null;
 };
 
-// Static test images for development (limited to 4 images)
-const testAdditionalImages = [
-    'https://images.unsplash.com/photo-1631867675167-90a456a90863?q=80&w=1000&auto=format&fit=crop', // News/Report image
-    'https://images.unsplash.com/photo-1579353977828-2a4eab540b9a?q=80&w=1000&auto=format&fit=crop', // Event image
-    'https://images.unsplash.com/photo-1566275529824-cca6d008f3da?q=80&w=1000&auto=format&fit=crop', // People image
-    'https://images.unsplash.com/photo-1587474260584-136574528ed5?q=80&w=1000&auto=format&fit=crop'  // Location image
-];
+
 
 export default NationalNews = ({ route, navigation }) => {
+    // Add safety check for route.params
+    if (!route?.params?.newsData) {
+        console.error('No newsData provided to NationalNews component');
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: WHITE }}>
+                <Text style={{ fontFamily: POPPINSLIGHT, fontSize: 16 }}>No news data available</Text>
+            </View>
+        );
+    }
+    
     const { newsData } = route.params;
-    console.log('Received newsData in HomeNews:', newsData);
+    console.log('Received newsData in NationalNews:', newsData);
     console.log('Featured Image URL:', newsData?.featured_image ? `${BASE_URL}${newsData.featured_image}` : null);
-    console.log('VideoPath in HomeNews:', newsData?.videoPath);
+    console.log('VideoPath in NationalNews:', newsData?.videoPath);
+    console.log('Additional Images in NationalNews:', newsData?.additionalImage);
 
     const [reaction, setReaction] = useState({});
     const [menuVisible, setMenuVisible] = useState(false);
@@ -249,6 +254,52 @@ export default NationalNews = ({ route, navigation }) => {
     const [liked, setLiked] = useState(false);
     const [commentModalVisible, setCommentModalVisible] = useState(false);
     const [showLoginAlert, setShowLoginAlert] = useState(false);
+    
+    // Process additional images from route data
+    const processedAdditionalImages = React.useMemo(() => {
+        console.log('🖼️ [DEBUG] Raw additionalImage data:', newsData?.additionalImage);
+        console.log('🖼️ [DEBUG] Type of additionalImage:', typeof newsData?.additionalImage);
+        console.log('🖼️ [DEBUG] Is Array:', Array.isArray(newsData?.additionalImage));
+        
+        if (!newsData?.additionalImage) {
+            console.log('🖼️ [DEBUG] No additionalImage data found');
+            return [];
+        }
+        
+        if (!Array.isArray(newsData.additionalImage)) {
+            console.log('🖼️ [DEBUG] additionalImage is not an array, trying to convert');
+            // Try to handle if it's a string or other format
+            if (typeof newsData.additionalImage === 'string') {
+                try {
+                    const parsed = JSON.parse(newsData.additionalImage);
+                    if (Array.isArray(parsed)) {
+                        console.log('🖼️ [DEBUG] Successfully parsed string to array:', parsed);
+                        const processed = parsed.map(imagePath => {
+                            const processedUrl = processUrl(imagePath);
+                            console.log('🖼️ [DEBUG] Processing additional image:', imagePath, '->', processedUrl);
+                            return processedUrl;
+                        }).filter(url => url !== null);
+                        console.log('🖼️ [DEBUG] Final processed images:', processed);
+                        return processed;
+                    }
+                } catch (e) {
+                    console.log('🖼️ [DEBUG] Failed to parse additionalImage string:', e);
+                }
+            }
+            return [];
+        }
+        
+        const processed = newsData.additionalImage.map(imagePath => {
+            const processedUrl = processUrl(imagePath);
+            console.log('🖼️ [DEBUG] Processing additional image:', imagePath, '->', processedUrl);
+            return processedUrl;
+        }).filter(url => url !== null);
+        
+        console.log('🖼️ [DEBUG] Final processed additional images array:', processed);
+        console.log('🖼️ [DEBUG] Number of additional images:', processed.length);
+        
+        return processed;
+    }, [newsData?.additionalImage]);
 
     useEffect(() => {
         checkLoginStatus();
@@ -1162,58 +1213,128 @@ export default NationalNews = ({ route, navigation }) => {
 
                     {contentHasHtml ? (
                         <>
-                            {content.split('</p>').map((paragraph, index) => {
-                                // Skip empty paragraphs
-                                if (!paragraph.trim()) return null;
+                            {(() => {
+                                console.log('🎯 [DEBUG] Starting HTML content processing');
+                                console.log('🎯 [DEBUG] Content length:', (content || '').length);
+                                console.log('🎯 [DEBUG] processedAdditionalImages length:', processedAdditionalImages.length);
+                                console.log('🎯 [DEBUG] First 200 chars of content:', (content || '').substring(0, 200));
                                 
-                                // Add back the closing tag that was removed by split
-                                const fullParagraph = `${paragraph}</p>`;
+                                // Check for h2 tags first, if not found, use p tags
+                                const hasH2Tags = /<h2[^>]*>.*?<\/h2>/gi.test(content || '');
+                                console.log('🎯 [DEBUG] Has H2 tags:', hasH2Tags);
                                 
-                                return (
-                                    <View key={index}>
-                                        <HTML 
-                                            source={{ html: fullParagraph }} 
-                                            contentWidth={WIDTH * 0.9}
-                                            tagsStyles={htmlStyles}
-                                            containerStyle={styles.htmlContent}
-                                        />
-                                        {/* Only show images for first 4 paragraphs */}
-                                        {testAdditionalImages[index] && index < 4 && (
-                                            <View style={styles.additionalImageContainer}>
-                                                <Image 
-                                                    source={{ uri: testAdditionalImages[index] }}
-                                                    style={styles.additionalImage}
-                                                    resizeMode="cover"
-                                                    onError={(e) => {
-                                                        console.log('Additional image load error:', e.nativeEvent.error);
-                                                        const imageUrl = newsData.additionalImages[index];
-                                                        if (imageUrl) {
-                                                            let fixedUri = imageUrl;
-                                                            if (imageUrl.includes('/uploads/')) {
-                                                                fixedUri = `${BASE_URL}${imageUrl.split('/uploads/')[1]}`;
-                                                            } 
-                                                            else if (imageUrl.includes('/images/')) {
-                                                                fixedUri = `${BASE_URL}uploads/images/${imageUrl.split('/images/')[1]}`;
-                                                            }
-                                                            else if (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.png') || imageUrl.endsWith('.jpeg')) {
-                                                                const filename = imageUrl.split('/').pop();
-                                                                fixedUri = `${BASE_URL}uploads/images/${filename}`;
-                                                            }
-                                                            fixedUri = fixedUri.replace(/([^:])\/\//g, '$1/');
-                                                            e.currentTarget.setNativeProps({
-                                                                source: [{ uri: fixedUri }]
-                                                            });
-                                                        }
-                                                    }}
-                                                />
-                                            </View>
-                                        )}
-                                    </View>
-                                );
-                            })}
+                                let splitRegex, tagName;
+                                if (hasH2Tags) {
+                                    splitRegex = /<\/h2>/gi;
+                                    tagName = 'h2';
+                                } else {
+                                    // Use p tags as fallback - split content into chunks of 2-3 paragraphs
+                                    splitRegex = /<\/p>/gi;
+                                    tagName = 'p';
+                                }
+                                
+                                const contentParts = (content || '').split(splitRegex);
+                                let additionalImageIndex = 0;
+                                
+                                console.log(`🎯 [DEBUG] Content parts after ${tagName} split:`, contentParts.length);
+                                console.log('🎯 [DEBUG] Content parts:', contentParts.map((part, i) => `Part ${i}: ${part.substring(0, 50)}...`));
+                                
+                                // If using p tags, group them to show images every 2-3 paragraphs
+                                let groupedParts = [];
+                                if (tagName === 'p' && contentParts.length > 1) {
+                                    const paragraphsPerGroup = 2; // Show image after every 2 paragraphs
+                                    for (let i = 0; i < contentParts.length; i += paragraphsPerGroup) {
+                                        const group = contentParts.slice(i, i + paragraphsPerGroup);
+                                        const groupContent = group.join('</p>') + (group.length > 0 && i + paragraphsPerGroup < contentParts.length ? '</p>' : '');
+                                        if (groupContent.trim()) {
+                                            groupedParts.push(groupContent);
+                                        }
+                                    }
+                                    console.log('🎯 [DEBUG] Grouped parts:', groupedParts.length);
+                                } else {
+                                    groupedParts = contentParts;
+                                }
+                                
+                                return groupedParts.map((part, index) => {
+                                    // If not the last part, add back the closing tag
+                                    const isLastPart = index === groupedParts.length - 1;
+                                    const htmlContent = isLastPart ? part : `${part}</${tagName}>`;
+                                    
+                                    console.log(`🎯 [DEBUG] Processing part ${index}, isLastPart: ${isLastPart}`);
+                                    console.log(`🎯 [DEBUG] HTML content for part ${index}:`, htmlContent.substring(0, 100));
+                                    
+                                    // Skip empty content
+                                    if (!htmlContent || !htmlContent.trim()) {
+                                        console.log(`🎯 [DEBUG] Skipping empty content for part ${index}`);
+                                        return null;
+                                    }
+                                    
+                                    // Show image after every part (except the last one) if we have images available
+                                    const shouldShowImage = !isLastPart && 
+                                                          processedAdditionalImages && 
+                                                          additionalImageIndex < processedAdditionalImages.length;
+                                    
+                                    const currentImageUrl = shouldShowImage ? processedAdditionalImages[additionalImageIndex] : null;
+                                    
+                                    console.log(`🎯 [DEBUG] Part ${index}: shouldShowImage=${shouldShowImage}, imageIndex=${additionalImageIndex}, imageUrl=${currentImageUrl}`);
+                                    
+                                    if (shouldShowImage) additionalImageIndex++;
+                                    
+                                    return (
+                                        <View key={`content-${index}`}>
+                                            <HTML 
+                                                source={{ html: htmlContent }} 
+                                                contentWidth={WIDTH * 0.9}
+                                                tagsStyles={htmlStyles}
+                                                containerStyle={styles.htmlContent}
+                                            />
+                                            {/* Show additional image after content parts */}
+                                            {currentImageUrl && (
+                                                <View style={styles.additionalImageContainer}>
+                                                    <Image 
+                                                        source={{ uri: currentImageUrl }}
+                                                        style={styles.additionalImage}
+                                                        resizeMode="cover"
+                                                        onLoad={() => {
+                                                            console.log('🎯 [DEBUG] Additional image loaded successfully:', currentImageUrl);
+                                                        }}
+                                                        onError={(e) => {
+                                                            console.log('🎯 [DEBUG] Additional image load error:', e.nativeEvent.error);
+                                                            console.log('🎯 [DEBUG] Failed additional image URL:', currentImageUrl);
+                                                        }}
+                                                    />
+                                                </View>
+                                            )}
+                                        </View>
+                                    );
+                                });
+                            })()}
                         </>
                     ) : (
-                        <Text style={styles.content}>{content}</Text>
+                        <>
+                            <Text style={styles.content}>{content}</Text>
+                            {/* If no HTML but we have additional images, show them anyway */}
+                            {processedAdditionalImages.length > 0 && (
+                                <View style={{ marginTop: HEIGHT * 0.02 }}>
+                                    {processedAdditionalImages.map((imageUrl, index) => (
+                                        <View key={`fallback-image-${index}`} style={styles.additionalImageContainer}>
+                                            <Image 
+                                                source={{ uri: imageUrl }}
+                                                style={styles.additionalImage}
+                                                resizeMode="cover"
+                                                onLoad={() => {
+                                                    console.log('🎯 [DEBUG] Fallback additional image loaded:', imageUrl);
+                                                }}
+                                                onError={(e) => {
+                                                    console.log('🎯 [DEBUG] Fallback additional image error:', e.nativeEvent.error);
+                                                    console.log('🎯 [DEBUG] Failed fallback image URL:', imageUrl);
+                                                }}
+                                            />
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                        </>
                     )}
                 </ScrollView>
             )}

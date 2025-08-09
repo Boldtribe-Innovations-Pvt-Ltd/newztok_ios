@@ -11,71 +11,55 @@ const PopoverAd = ({ onClose }) => {
   const [adData, setAdData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
-  const maxRetries = 3;
-  const retryTimeoutRef = useRef(null);
-  const cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+  const [noAdsAvailable, setNoAdsAvailable] = useState(false);
 
   useEffect(() => {
-    // Check if we need to fetch new data (no cache or cache expired)
-    const now = Date.now();
-    const shouldFetch = (!adData || (now - lastFetchTime) > cacheTimeout) && retryCount === 0;
-    
-    if (shouldFetch) {
-      fetchAdData();
-    } else if (adData) {
-      setLoading(false); // Use cached data
-    }
-    
-    return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  }, [retryCount]);
+    fetchAdData();
+  }, []);
 
   const fetchAdData = async () => {
     try {
       setLoading(true);
       setError(null);
+      setNoAdsAvailable(false);
       
       const response = await GETNETWORK(`${BASE_URL}api/ads/public/mobile/popover`);
+      console.log('PopoverAd API Response:', response);
       
       if (!response || !response.success) {
-        throw new Error('Invalid API response');
+        console.log('PopoverAd API failed or returned unsuccessful response');
+        // If API fails, immediately show "No Advertisement" instead of retrying
+        setNoAdsAvailable(true);
+        setLoading(false);
+        return;
       }
 
+      // Simple check: If API has data, show PopoverAd
       let ads = [];
-      
-      // Handle different response structures
-      if (response.data?.data) {
-        ads = response.data.data;
-      } else if (Array.isArray(response.data)) {
+      if (Array.isArray(response.data)) {
         ads = response.data;
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        ads = response.data.data;
       } else if (response.data) {
         ads = [response.data];
       }
 
-      // Filter active popover ads
-      const eligibleAds = ads.filter(ad => 
-        ad?.isActive && 
-        ad?.platform?.toLowerCase() === 'mobile' && 
-        ad?.type?.toLowerCase() === 'popover' && 
-        ad?.imageUrl
-      );
+      console.log('API returned ads:', ads);
 
-      if (eligibleAds.length === 0) {
-        throw new Error('No eligible ads found');
+      // If no data in API, don't show PopoverAd
+      if (!ads || ads.length === 0) {
+        console.log('No ads in API - PopoverAd will not show');
+        setNoAdsAvailable(true);
+        setLoading(false);
+        return;
       }
 
-      // Sort by date and get most recent
-      const mostRecentAd = eligibleAds.sort((a, b) => 
-        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-      )[0];
+      // If API has data, use the first ad
+      console.log('API has ads - PopoverAd will show');
+      const adToShow = ads[0];
 
       // Process image URL
-      let imageUrl = mostRecentAd.imageUrl;
+      let imageUrl = adToShow.imageUrl;
       if (imageUrl) {
         // Handle relative paths
         if (imageUrl.startsWith('/')) {
@@ -87,26 +71,18 @@ const PopoverAd = ({ onClose }) => {
         }
       }
 
+      console.log('Setting PopoverAd data:', { imageUrl, redirectUrl: adToShow.redirectUrl });
       setAdData({
         imageUrl,
-        redirectUrl: mostRecentAd.redirectUrl
+        redirectUrl: adToShow.redirectUrl
       });
-      setRetryCount(0);
-      setLastFetchTime(Date.now()); // Update cache timestamp
+      setLoading(false);
       
     } catch (error) {
       console.error('Error fetching ad:', error);
-      setError(error.message);
       
-      if (retryCount < maxRetries) {
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-        retryTimeoutRef.current = setTimeout(() => {
-          setRetryCount(prev => prev + 1);
-        }, delay);
-      } else {
-        handleClose();
-      }
-    } finally {
+      // For any error, immediately show "No Advertisement" instead of retrying
+      setNoAdsAvailable(true);
       setLoading(false);
     }
   };
@@ -136,14 +112,28 @@ const PopoverAd = ({ onClose }) => {
 
   const handleImageError = (error) => {
     console.error('Image loading error:', error);
-    if (retryCount < maxRetries) {
-      setRetryCount(prev => prev + 1);
-    } else {
+    // If image fails to load, close the ad
+    setNoAdsAvailable(true);
+    setAdData(null);
+    setLoading(false);
+    // Close the modal when image fails
+    setTimeout(() => {
       handleClose();
-    }
+    }, 100);
   };
 
-  if (!visible) return null;
+  // Don't render anything if not visible
+  if (!visible) {
+    return null;
+  }
+
+  // Simple condition: Show PopoverAd only if API has data and we have adData
+  if (loading || noAdsAvailable || error || !adData) {
+    console.log('PopoverAd: Not showing - loading:', loading, 'noAds:', noAdsAvailable, 'error:', error, 'hasAdData:', !!adData);
+    return null;
+  }
+  
+  console.log('PopoverAd: API has data - showing PopoverAd with imageUrl:', adData.imageUrl);
 
   return (
     <Modal
@@ -155,32 +145,18 @@ const PopoverAd = ({ onClose }) => {
     >
       <StatusBar translucent backgroundColor="rgba(0, 0, 0, 0.8)" />
       <View style={styles.container}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading Advertisement...</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>Advertisement Unavailable</Text>
-          </View>
-        ) : adData?.imageUrl ? (
-          <TouchableOpacity 
-            style={styles.imageContainer} 
-            activeOpacity={0.9}
-            onPress={handleRedirect}
-          >
-            <Image 
-              source={{ uri: adData.imageUrl }} 
-              style={styles.fullScreenImage}
-              resizeMode="contain"
-              onError={({ nativeEvent: { error } }) => handleImageError(error)}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.adTextContainer}>
-            <Text style={styles.adText}>ADVERTISEMENT</Text>
-          </View>
-        )}
+        <TouchableOpacity 
+          style={styles.imageContainer} 
+          activeOpacity={0.9}
+          onPress={handleRedirect}
+        >
+          <Image 
+            source={{ uri: adData.imageUrl }} 
+            style={styles.fullScreenImage}
+            resizeMode="contain"
+            onError={({ nativeEvent: { error } }) => handleImageError(error)}
+          />
+        </TouchableOpacity>
         
         <TouchableOpacity 
           style={styles.closeButton} 

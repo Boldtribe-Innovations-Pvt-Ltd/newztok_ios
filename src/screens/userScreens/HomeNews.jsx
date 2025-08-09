@@ -213,19 +213,25 @@ const getImageUrlForSharing = (item) => {
     return null;
 };
 
-// Static test images for development (limited to 4 images)
-const testAdditionalImages = [
-    'https://images.unsplash.com/photo-1631867675167-90a456a90863?q=80&w=1000&auto=format&fit=crop', // News/Report image
-    'https://images.unsplash.com/photo-1579353977828-2a4eab540b9a?q=80&w=1000&auto=format&fit=crop', // Event image
-    'https://images.unsplash.com/photo-1566275529824-cca6d008f3da?q=80&w=1000&auto=format&fit=crop', // People image
-    'https://images.unsplash.com/photo-1587474260584-136574528ed5?q=80&w=1000&auto=format&fit=crop'  // Location image
-];
+
 
 export default HomeNews = ({ route, navigation }) => {
+    // Add safety check for route.params
+    if (!route?.params?.newsData) {
+        console.error('No newsData provided to HomeNews component');
+        return (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: WHITE }}>
+                <Text style={{ fontFamily: POPPINSLIGHT, fontSize: 16 }}>No news data available</Text>
+            </View>
+        );
+    }
+    
     const { newsData } = route.params;
     console.log('Received newsData in HomeNews:', newsData);
     console.log('Featured Image URL:', newsData?.featured_image ? `${BASE_URL}${newsData.featured_image}` : null);
     console.log('VideoPath in HomeNews:', newsData?.videoPath);
+    console.log('🖼️ [DEBUG] Raw additionalImage data in HomeNews:', newsData?.additionalImage);
+    console.log('🖼️ [DEBUG] Type of additionalImage in HomeNews:', typeof newsData?.additionalImage);
 
     const [reaction, setReaction] = useState({});
     const [menuVisible, setMenuVisible] = useState(false);
@@ -249,6 +255,59 @@ export default HomeNews = ({ route, navigation }) => {
     const [liked, setLiked] = useState(false);
     const [commentModalVisible, setCommentModalVisible] = useState(false);
     const [showLoginAlert, setShowLoginAlert] = useState(false);
+    
+    // Process additional images from route data
+    const processedAdditionalImages = React.useMemo(() => {
+        console.log('🖼️ [DEBUG] Raw additionalImage data:', newsData?.additionalImage);
+        console.log('🖼️ [DEBUG] Type of additionalImage:', typeof newsData?.additionalImage);
+        console.log('🖼️ [DEBUG] Array check:', Array.isArray(newsData?.additionalImage));
+        
+        if (!newsData?.additionalImage) {
+            console.log('🖼️ [DEBUG] No additionalImage data found');
+            return [];
+        }
+        
+        let additionalImages = [];
+        
+        try {
+            // Handle array of images
+            if (Array.isArray(newsData.additionalImage)) {
+                additionalImages = newsData.additionalImage;
+                console.log('🖼️ [DEBUG] Using array of images:', additionalImages);
+            }
+            // Handle string that might be JSON
+            else if (typeof newsData.additionalImage === 'string') {
+                try {
+                    const parsed = JSON.parse(newsData.additionalImage);
+                    if (Array.isArray(parsed)) {
+                        additionalImages = parsed;
+                        console.log('🖼️ [DEBUG] Parsed JSON array:', additionalImages);
+                    } else {
+                        // Single image as string
+                        additionalImages = [newsData.additionalImage];
+                        console.log('🖼️ [DEBUG] Single image string:', additionalImages);
+                    }
+                } catch (parseError) {
+                    // Not JSON, treat as single image URL
+                    additionalImages = [newsData.additionalImage];
+                    console.log('🖼️ [DEBUG] Non-JSON string as single image:', additionalImages);
+                }
+            }
+            
+            // Process URLs using the processUrl helper
+            const processedUrls = additionalImages
+                .filter(img => img && typeof img === 'string' && img.trim() !== '')
+                .map(img => processUrl(img.trim()))
+                .filter(url => url !== null);
+            
+            console.log('🖼️ [DEBUG] Final processed URLs:', processedUrls);
+            return processedUrls;
+            
+        } catch (error) {
+            console.error('🖼️ [ERROR] Error processing additional images:', error);
+            return [];
+        }
+    }, [newsData?.additionalImage]);
 
     useEffect(() => {
         checkLoginStatus();
@@ -925,6 +984,46 @@ export default HomeNews = ({ route, navigation }) => {
         }
     };
 
+    // Helper function to parse content and insert images after h2 tags
+    const parseContentWithImages = (htmlContent, images) => {
+        if (!htmlContent || !images || images.length === 0) {
+            return htmlContent ? [htmlContent] : [];
+        }
+        
+        console.log('🖼️ [DEBUG] Parsing content with images:', images.length);
+        
+        // Split content by h2 closing tags
+        const h2Parts = htmlContent.split('</h2>');
+        const result = [];
+        let imageIndex = 0;
+        
+        h2Parts.forEach((part, index) => {
+            if (!part.trim()) return;
+            
+            // Add back the closing h2 tag that was removed by split (except for the last part)
+            const htmlPart = index < h2Parts.length - 1 ? `${part}</h2>` : part;
+            
+            result.push({
+                type: 'html',
+                content: htmlPart,
+                key: `html-${index}`
+            });
+            
+            // Add image after h2 tag (not after the last part if it doesn't contain h2)
+            if (index < h2Parts.length - 1 && imageIndex < images.length) {
+                result.push({
+                    type: 'image',
+                    content: images[imageIndex],
+                    key: `image-${imageIndex}`
+                });
+                imageIndex++;
+            }
+        });
+        
+        console.log('🖼️ [DEBUG] Parsed result:', result.length, 'items');
+        return result;
+    };
+
     // Comment modal component
     const renderCommentModal = () => {
         return (
@@ -1142,54 +1241,51 @@ export default HomeNews = ({ route, navigation }) => {
 
                     {contentHasHtml ? (
                         <>
-                            {content.split('</p>').map((paragraph, index) => {
-                                // Skip empty paragraphs
-                                if (!paragraph.trim()) return null;
-                                
-                                // Add back the closing tag that was removed by split
-                                const fullParagraph = `${paragraph}</p>`;
-                                
-                                return (
-                                    <View key={index}>
-                                        <HTML 
-                                            source={{ html: fullParagraph }} 
-                                            contentWidth={WIDTH * 0.9}
-                                            tagsStyles={htmlStyles}
-                                            containerStyle={styles.htmlContent}
-                                        />
-                                        {/* Only show images for first 4 paragraphs */}
-                                        {testAdditionalImages[index] && index < 4 && (
-                                            <View style={styles.additionalImageContainer}>
-                                                <Image 
-                                                    source={{ uri: testAdditionalImages[index] }}
-                                                    style={styles.additionalImage}
-                                                    resizeMode="cover"
-                                                    onError={(e) => {
-                                                        console.log('Additional image load error:', e.nativeEvent.error);
-                                                        const imageUrl = newsData.additionalImages[index];
-                                                        if (imageUrl) {
-                                                            let fixedUri = imageUrl;
-                                                            if (imageUrl.includes('/uploads/')) {
-                                                                fixedUri = `${BASE_URL}${imageUrl.split('/uploads/')[1]}`;
-                                                            } 
-                                                            else if (imageUrl.includes('/images/')) {
-                                                                fixedUri = `${BASE_URL}uploads/images/${imageUrl.split('/images/')[1]}`;
-                                                            }
-                                                            else if (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.png') || imageUrl.endsWith('.jpeg')) {
-                                                                const filename = imageUrl.split('/').pop();
-                                                                fixedUri = `${BASE_URL}uploads/images/${filename}`;
-                                                            }
-                                                            fixedUri = fixedUri.replace(/([^:])\/\//g, '$1/');
-                                                            e.currentTarget.setNativeProps({
-                                                                source: [{ uri: fixedUri }]
-                                                            });
+                            {parseContentWithImages(content, processedAdditionalImages).map((item) => {
+                                if (item.type === 'html') {
+                                    return (
+                                        <View key={item.key}>
+                                            <HTML 
+                                                source={{ html: item.content }} 
+                                                contentWidth={WIDTH * 0.9}
+                                                tagsStyles={htmlStyles}
+                                                containerStyle={styles.htmlContent}
+                                            />
+                                        </View>
+                                    );
+                                } else if (item.type === 'image') {
+                                    return (
+                                        <View key={item.key} style={styles.additionalImageContainer}>
+                                            <Image 
+                                                source={{ uri: item.content }}
+                                                style={styles.additionalImage}
+                                                resizeMode="cover"
+                                                onError={(e) => {
+                                                    console.log('Additional image load error:', e.nativeEvent.error);
+                                                    const imageUrl = item.content;
+                                                    if (imageUrl) {
+                                                        let fixedUri = imageUrl;
+                                                        if (imageUrl.includes('/uploads/')) {
+                                                            fixedUri = `${BASE_URL}${imageUrl.split('/uploads/')[1]}`;
+                                                        } 
+                                                        else if (imageUrl.includes('/images/')) {
+                                                            fixedUri = `${BASE_URL}uploads/images/${imageUrl.split('/images/')[1]}`;
                                                         }
-                                                    }}
-                                                />
-                                            </View>
-                                        )}
-                                    </View>
-                                );
+                                                        else if (imageUrl.endsWith('.jpg') || imageUrl.endsWith('.png') || imageUrl.endsWith('.jpeg')) {
+                                                            const filename = imageUrl.split('/').pop();
+                                                            fixedUri = `${BASE_URL}uploads/images/${filename}`;
+                                                        }
+                                                        fixedUri = fixedUri.replace(/([^:])\/\//g, '$1/');
+                                                        e.currentTarget.setNativeProps({
+                                                            source: [{ uri: fixedUri }]
+                                                        });
+                                                    }
+                                                }}
+                                            />
+                                        </View>
+                                    );
+                                }
+                                return null;
                             })}
                         </>
                     ) : (

@@ -1065,6 +1065,7 @@ export default DistrictNewzScreen = ({ navigation, route }) => {
                 title: item.title,
                 content: item.content,
                 featuredImage: item.featuredImage,
+                additionalImage: item.additionalImage, // Add this line
                 time: item.time
             }
         });
