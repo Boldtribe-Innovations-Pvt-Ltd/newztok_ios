@@ -37,6 +37,12 @@ export default VideoPostScreen = () => {
     const [youtubeLink, setYoutubeLink] = useState("");
     const [videoFile, setVideoFile] = useState(null);
     const [selectedFile, setSelectedFile] = useState("No file selected");
+    const [additionalImages, setAdditionalImages] = useState([
+        { file: null, name: 'No file selected' },
+        { file: null, name: 'No file selected' },
+        { file: null, name: 'No file selected' },
+        { file: null, name: 'No file selected' }
+    ]);
     const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("---------");
     const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -69,10 +75,17 @@ export default VideoPostScreen = () => {
     // Function to check token
     const checkToken = async () => {
         try {
-            // Check if we have a token
-            const existingToken = await getStringByKey('loginResponse');
+            // Check multiple token sources
+            const userToken = await getStringByKey('userToken');
+            const loginResponse = await getObjByKey('loginResponse');
+            const userData = await getObjByKey('user');
             
-            if (existingToken) {
+            const token = userToken || 
+                         loginResponse?.token || 
+                         loginResponse?.data || 
+                         userData?.token;
+            
+            if (token) {
                 console.log("Using existing token from storage");
                 setHasToken(true);
                 return true;
@@ -248,11 +261,73 @@ export default VideoPostScreen = () => {
                 // Get the selected asset
                 const asset = response.assets[0];
                 console.log("Video selected:", asset.fileName);
-                setSelectedFile(asset.fileName || 'video.mp4');
-                setVideoFile(asset);
                 
-                // Clear YouTube link if a file is selected
-                setYoutubeLink("");
+                // Check video file size (server limit appears to be around 50MB based on 413 error)
+                const fileSizeInMB = asset.fileSize ? (asset.fileSize / (1024 * 1024)) : 0;
+                console.log(`Video file size: ${fileSizeInMB.toFixed(2)} MB`);
+                
+                // Hard limit: Reject files over 50MB (server limit)
+                if (fileSizeInMB > 50) {
+                    Alert.alert(
+                        "File Too Large",
+                        `The selected video is ${fileSizeInMB.toFixed(1)}MB. The maximum allowed size is 50MB.\n\nPlease:\n• Compress your video\n• Use a shorter video clip\n• Reduce video quality/resolution`,
+                        [{ text: "OK", style: "default" }]
+                    );
+                    return; // Don't select the file
+                }
+                
+                // Warning for files over 25MB (but still allow)
+                if (fileSizeInMB > 25) {
+                    Alert.alert(
+                        "Large Video File",
+                        `The selected video is ${fileSizeInMB.toFixed(1)}MB. This may take longer to upload. For best results, keep videos under 25MB.`,
+                        [
+                            { text: "Cancel", style: "cancel" },
+                            { 
+                                text: "Continue", 
+                                onPress: () => {
+                                    setSelectedFile(asset.fileName || 'video.mp4');
+                                    setVideoFile(asset);
+                                    // Clear YouTube link if a file is selected
+                                    setYoutubeLink("");
+                                }
+                            }
+                        ]
+                    );
+                } else {
+                    setSelectedFile(asset.fileName || 'video.mp4');
+                    setVideoFile(asset);
+                    // Clear YouTube link if a file is selected
+                    setYoutubeLink("");
+                }
+            }
+        });
+    };
+
+    const handleChooseAdditionalImage = (index) => {
+        const options = {
+            mediaType: 'photo',
+            includeBase64: false,
+            quality: 0.8,
+        };
+
+        ImagePicker.launchImageLibrary(options, (response) => {
+            if (response.didCancel) {
+                console.log('User cancelled image picker');
+            } else if (response.error) {
+                console.log('ImagePicker Error: ', response.error);
+                Alert.alert("Error", "An error occurred while selecting the image");
+            } else {
+                const asset = response.assets[0];
+                console.log(`Additional image ${index + 1} selected:`, asset.fileName);
+                
+                // Update the specific index in additionalImages array
+                const updatedImages = [...additionalImages];
+                updatedImages[index] = {
+                    file: asset,
+                    name: asset.fileName || `image_${index + 1}.jpg`
+                };
+                setAdditionalImages(updatedImages);
             }
         });
     };
@@ -391,6 +466,19 @@ export default VideoPostScreen = () => {
             return;
         }
 
+        // Additional validation for video file size before submission
+        if (videoFile && videoFile.fileSize) {
+            const fileSizeInMB = videoFile.fileSize / (1024 * 1024);
+            if (fileSizeInMB > 50) {
+                setToastMessage({
+                    type: "error",
+                    msg: `Video file is ${fileSizeInMB.toFixed(1)}MB. Maximum allowed size is 50MB. Please compress your video or use a smaller file.`,
+                    visible: true
+                });
+                return;
+            }
+        }
+
         try {
             setLoading(true);
             
@@ -398,8 +486,16 @@ export default VideoPostScreen = () => {
             const submitUrl = `${BASE_URL}api/news/create`;
             console.log('Submit URL:', submitUrl);
 
-            // Get the token
-            const token = await getStringByKey('loginResponse');
+            // Try multiple possible token keys
+            const userToken = await getStringByKey('userToken');
+            const loginResponse = await getObjByKey('loginResponse');
+            const userData = await getObjByKey('user');
+            
+            // Try to get token from different sources
+            let token = userToken || 
+                       loginResponse?.token || 
+                       loginResponse?.data || 
+                       userData?.token;
             
             if (!token) {
                 setToastMessage({
@@ -409,6 +505,11 @@ export default VideoPostScreen = () => {
                 });
                 setLoading(false);
                 return;
+            }
+            
+            // Ensure loginResponse is stored for compatibility
+            if (!loginResponse && token) {
+                await storeObjByKey('loginResponse', { data: token, token: token });
             }
 
             // Log the data we're about to send for debugging
@@ -422,51 +523,75 @@ export default VideoPostScreen = () => {
             if (videoFile) {
                 console.log("Preparing MP4 video upload with FormData");
                 
-                // Create FormData
+                // Create data payload for video upload submission
+                const videoUploadData = {
+                    title: title.trim(),                    // Post Title/Headline
+                    content: content.trim(),                // Content
+                    category: selectedCategoryId,           // Category
+                    type: 'Video Content',
+                    contentType: 'video'                   // Video category type
+                };
+                
+                // Add optional fields only if they have values
+                if (selectedStateId) videoUploadData.state = selectedStateId;           // State
+                if (selectedDistrictId) videoUploadData.district = selectedDistrictId; // District
+                
+                // Create FormData for video upload (required for file uploads)
                 const formData = new FormData();
                 
-                // Add required fields
-                formData.append('title', title.trim());
-                formData.append('content', content.trim());
-                formData.append('category', selectedCategoryId);
-                
-                // Optional fields
-                if (selectedStateId) formData.append('state', selectedStateId);
-                if (selectedDistrictId) formData.append('district', selectedDistrictId);
-                
-                formData.append('type', 'Video Content');
-                formData.append('contentType', 'video');
+                // Add all data fields to FormData
+                Object.keys(videoUploadData).forEach(key => {
+                    formData.append(key, videoUploadData[key]);
+                });
                 
                 // Append the video file
-                formData.append('video', {
+                const videoFileObj = {
                     uri: videoFile.uri,
                     type: videoFile.type || 'video/mp4',
                     name: videoFile.fileName || 'video.mp4',
+                };
+                formData.append('video', videoFileObj);                    // Upload Video
+                
+                // Append additional images if any are selected
+                const selectedAdditionalImages = additionalImages.filter(img => img.file !== null);
+                selectedAdditionalImages.forEach((imageItem, index) => {
+                    const additionalImageObj = {
+                        uri: imageItem.file.uri,
+                        type: imageItem.file.type || 'image/jpeg',
+                        name: imageItem.file.fileName || `additional_image_${index + 1}.jpg`,
+                    };
+                    formData.append('additionalImage', additionalImageObj);  // Additional Images
+                    console.log(`Adding additional image ${index + 1} to video upload:`, additionalImageObj.name);
                 });
                 
-                // Log FormData fields
-                console.log("FormData fields:", {
-                    title: title.trim(),
-                    content: `${content.trim().length} chars`,
-                    category: selectedCategoryId,
-                    video: videoFile.fileName || 'video.mp4'
+                console.log("Video upload submission data:", {
+                    title: videoUploadData.title,
+                    content: `${videoUploadData.content.length} chars`,
+                    category: videoUploadData.category,
+                    video: videoFileObj.name,
+                    state: videoUploadData.state,
+                    district: videoUploadData.district,
+                    contentType: videoUploadData.contentType,
+                    additionalImagesCount: selectedAdditionalImages.length,
+                    additionalImages: selectedAdditionalImages.map(img => img.name)
                 });
                 
-                // Use direct fetch instead of utility functions
+                // Use direct fetch for FormData (required for file uploads with BASE_URL and token)
                 try {
-                    // Create request headers
+                    // Create request headers with stored token
                     const headers = {
                         'Accept': 'application/json',
                         'Content-Type': 'multipart/form-data',
                         'Authorization': `Bearer ${token}`
                     };
                     
-                    console.log("Request headers:", {
+                    console.log("Video upload request to:", submitUrl);
+                    console.log("Video upload headers:", {
                         ...headers,
                         'Authorization': 'Bearer ***' // Don't log actual token
                     });
                     
-                    // Make fetch request
+                    // Make fetch request using BASE_URL and stored token
                     const fetchResponse = await fetch(submitUrl, {
                         method: 'POST',
                         headers: headers,
@@ -475,13 +600,13 @@ export default VideoPostScreen = () => {
                     
                     // Get response text
                     const responseText = await fetchResponse.text();
-                    console.log("Raw response:", responseText);
+                    console.log("Video upload raw response:", responseText);
                     
                     // Try to parse as JSON
                     try {
                         response = JSON.parse(responseText);
                     } catch (e) {
-                        console.log("Response is not valid JSON, using raw text");
+                        console.log("Video upload response is not valid JSON, using raw text");
                         response = {
                             success: fetchResponse.ok,
                             message: responseText,
@@ -489,41 +614,111 @@ export default VideoPostScreen = () => {
                         };
                     }
                     
-                    console.log("Parsed FormData upload response:", response);
+                    console.log("Video upload parsed response:", response);
                 } catch (fetchError) {
-                    console.error("Fetch error:", fetchError);
+                    console.error("Video upload fetch error:", fetchError);
                     throw fetchError;
                 }
             } 
             // CASE 2: YouTube URL
             else {
-                console.log("Preparing YouTube link submission with JSON");
+                console.log("Preparing YouTube link submission");
                 
                 // Get thumbnail from YouTube if available
                 const thumbnailUrl = getYouTubeThumbnail(youtubeLink.trim());
                 
-                // Create payload with youtubeUrl - use exact field names expected by the API
-                const postData = {
-                    title: title.trim(),
-                    content: content.trim(),
-                    category: selectedCategoryId,
-                    youtubeUrl: youtubeLink.trim()
+                // Check if there are any additional images selected
+                const selectedAdditionalImages = additionalImages.filter(img => img.file !== null);
+                console.log(`YouTube submission with ${selectedAdditionalImages.length} additional images`);
+                
+                // Create data payload for YouTube link submission
+                const youtubePostData = {
+                    title: title.trim(),                    // Post Title/Headline
+                    content: content.trim(),                // Content
+                    category: selectedCategoryId,           // Category
+                    youtubeUrl: youtubeLink.trim(),        // YouTube Link
+                    type: 'Video Content',
+                    contentType: 'video'                   // Video category type
                 };
                 
                 // Add optional fields only if they have values
-                if (selectedStateId) postData.state = selectedStateId;
-                if (selectedDistrictId) postData.district = selectedDistrictId;
-                if (thumbnailUrl) postData.thumbnailUrl = thumbnailUrl;
+                if (selectedStateId) youtubePostData.state = selectedStateId;           // State
+                if (selectedDistrictId) youtubePostData.district = selectedDistrictId; // District
+                if (thumbnailUrl) youtubePostData.thumbnailUrl = thumbnailUrl;
                 
-                // These might be optional, add them separately
-                postData.type = 'Video Content';
-                postData.contentType = 'video';
+                console.log("YouTube submission data:", {
+                    title: youtubePostData.title,
+                    content: `${youtubePostData.content.length} chars`,
+                    category: youtubePostData.category,
+                    youtubeUrl: youtubePostData.youtubeUrl,
+                    state: youtubePostData.state,
+                    district: youtubePostData.district,
+                    contentType: youtubePostData.contentType,
+                    additionalImagesCount: selectedAdditionalImages.length
+                });
                 
-                console.log("YouTube submission data:", JSON.stringify(postData));
-                
-                // Send the request with JSON data - use regular POSTNETWORK for JSON
-                response = await POSTNETWORK(submitUrl, postData, true);
-                console.log("YouTube upload response:", response);
+                // If there are additional images, use FormData; otherwise use JSON with POSTNETWORK
+                if (selectedAdditionalImages.length > 0) {
+                    console.log("Using FormData for YouTube + additional images");
+                    
+                    // Create FormData for YouTube + additional images
+                    const formData = new FormData();
+                    
+                    // Add all data fields to FormData
+                    Object.keys(youtubePostData).forEach(key => {
+                        formData.append(key, youtubePostData[key]);
+                    });
+                    
+                    // Append additional images
+                    selectedAdditionalImages.forEach((imageItem, index) => {
+                        const additionalImageObj = {
+                            uri: imageItem.file.uri,
+                            type: imageItem.file.type || 'image/jpeg',
+                            name: imageItem.file.fileName || `additional_image_${index + 1}.jpg`,
+                        };
+                        formData.append('additionalImage', additionalImageObj);  // Additional Images
+                        console.log(`Adding additional image ${index + 1}:`, additionalImageObj.name);
+                    });
+                    
+                    // Use direct fetch for FormData (required for file uploads)
+                    try {
+                        const headers = {
+                            'Accept': 'application/json',
+                            'Content-Type': 'multipart/form-data',
+                            'Authorization': `Bearer ${token}`
+                        };
+                        
+                        const fetchResponse = await fetch(submitUrl, {
+                            method: 'POST',
+                            headers: headers,
+                            body: formData
+                        });
+                        
+                        const responseText = await fetchResponse.text();
+                        console.log("YouTube FormData raw response:", responseText);
+                        
+                        try {
+                            response = JSON.parse(responseText);
+                        } catch (e) {
+                            response = {
+                                success: fetchResponse.ok,
+                                message: responseText,
+                                statusCode: fetchResponse.status
+                            };
+                        }
+                        
+                        console.log("YouTube FormData parsed response:", response);
+                    } catch (fetchError) {
+                        console.error("YouTube FormData fetch error:", fetchError);
+                        throw fetchError;
+                    }
+                } else {
+                    console.log("Using POSTNETWORK for YouTube only (no additional images)");
+                    
+                    // Send the request with JSON data using POSTNETWORK
+                    response = await POSTNETWORK(submitUrl, youtubePostData, true);
+                    console.log("YouTube POSTNETWORK response:", response);
+                }
             }
             
             console.log("Response from server:", JSON.stringify(response));
@@ -542,6 +737,12 @@ export default VideoPostScreen = () => {
                 setYoutubeLink('');
                 setSelectedFile('No file selected');
                 setVideoFile(null);
+                setAdditionalImages([
+                    { file: null, name: 'No file selected' },
+                    { file: null, name: 'No file selected' },
+                    { file: null, name: 'No file selected' },
+                    { file: null, name: 'No file selected' }
+                ]);
                 setSelectedCategory('---------');
                 setSelectedCategoryId(null);
             } else {
@@ -559,7 +760,14 @@ export default VideoPostScreen = () => {
                         
                         if (videoFile) {
                             // Retry FormData upload with direct fetch
-                            const newToken = await getStringByKey('loginResponse');
+                            const newUserToken = await getStringByKey('userToken');
+                            const newLoginResponse = await getObjByKey('loginResponse');
+                            const newUserData = await getObjByKey('user');
+                            
+                            const newToken = newUserToken || 
+                                           newLoginResponse?.token || 
+                                           newLoginResponse?.data || 
+                                           newUserData?.token;
                             
                             // Re-create FormData
                             const retryFormData = new FormData();
@@ -599,25 +807,83 @@ export default VideoPostScreen = () => {
                                 };
                             }
                         } else {
-                            // Retry YouTube link with POSTNETWORK
+                            // Retry YouTube link
                             const thumbnailUrl = getYouTubeThumbnail(youtubeLink.trim());
-                            const retryData = {
-                                title: title.trim(),
-                                content: content.trim(),
-                                category: selectedCategoryId,
-                                youtubeUrl: youtubeLink.trim()
-                            };
+                            const selectedAdditionalImages = additionalImages.filter(img => img.file !== null);
                             
-                            // Add optional fields only if they have values
-                            if (selectedStateId) retryData.state = selectedStateId;
-                            if (selectedDistrictId) retryData.district = selectedDistrictId;
-                            if (thumbnailUrl) retryData.thumbnailUrl = thumbnailUrl;
-                            
-                            // These might be optional, add them separately
-                            retryData.type = 'Video Content';
-                            retryData.contentType = 'video';
-                            
-                            retryResponse = await POSTNETWORK(submitUrl, retryData, true);
+                            if (selectedAdditionalImages.length > 0) {
+                                // Retry YouTube with FormData (has additional images)
+                                const newUserToken = await getStringByKey('userToken');
+                                const newLoginResponse = await getObjByKey('loginResponse');
+                                const newUserData = await getObjByKey('user');
+                                
+                                const newToken = newUserToken || 
+                                               newLoginResponse?.token || 
+                                               newLoginResponse?.data || 
+                                               newUserData?.token;
+                                
+                                const retryFormData = new FormData();
+                                retryFormData.append('title', title.trim());
+                                retryFormData.append('content', content.trim());
+                                retryFormData.append('category', selectedCategoryId);
+                                retryFormData.append('youtubeUrl', youtubeLink.trim());
+                                if (selectedStateId) retryFormData.append('state', selectedStateId);
+                                if (selectedDistrictId) retryFormData.append('district', selectedDistrictId);
+                                if (thumbnailUrl) retryFormData.append('thumbnailUrl', thumbnailUrl);
+                                retryFormData.append('type', 'Video Content');
+                                retryFormData.append('contentType', 'video');
+                                
+                                // Append additional images
+                                selectedAdditionalImages.forEach((imageItem, index) => {
+                                    const additionalImageObj = {
+                                        uri: imageItem.file.uri,
+                                        type: imageItem.file.type || 'image/jpeg',
+                                        name: imageItem.file.fileName || `additional_image_${index + 1}.jpg`,
+                                    };
+                                    retryFormData.append('additionalImage', additionalImageObj);
+                                });
+                                
+                                const retryFetchResponse = await fetch(submitUrl, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Accept': 'application/json',
+                                        'Content-Type': 'multipart/form-data',
+                                        'Authorization': `Bearer ${newToken}`
+                                    },
+                                    body: retryFormData
+                                });
+                                
+                                const retryResponseText = await retryFetchResponse.text();
+                                
+                                try {
+                                    retryResponse = JSON.parse(retryResponseText);
+                                } catch (e) {
+                                    retryResponse = {
+                                        success: retryFetchResponse.ok,
+                                        message: retryResponseText,
+                                        statusCode: retryFetchResponse.status
+                                    };
+                                }
+                            } else {
+                                // Retry YouTube with JSON (no additional images)
+                                const retryData = {
+                                    title: title.trim(),
+                                    content: content.trim(),
+                                    category: selectedCategoryId,
+                                    youtubeUrl: youtubeLink.trim()
+                                };
+                                
+                                // Add optional fields only if they have values
+                                if (selectedStateId) retryData.state = selectedStateId;
+                                if (selectedDistrictId) retryData.district = selectedDistrictId;
+                                if (thumbnailUrl) retryData.thumbnailUrl = thumbnailUrl;
+                                
+                                // These might be optional, add them separately
+                                retryData.type = 'Video Content';
+                                retryData.contentType = 'video';
+                                
+                                retryResponse = await POSTNETWORK(submitUrl, retryData, true);
+                            }
                         }
                         
                         if (retryResponse && retryResponse.success) {
@@ -633,6 +899,12 @@ export default VideoPostScreen = () => {
                             setYoutubeLink('');
                             setSelectedFile('No file selected');
                             setVideoFile(null);
+                            setAdditionalImages([
+                                { file: null, name: 'No file selected' },
+                                { file: null, name: 'No file selected' },
+                                { file: null, name: 'No file selected' },
+                                { file: null, name: 'No file selected' }
+                            ]);
                             setSelectedCategory('---------');
                             setSelectedCategoryId(null);
                         } else {
@@ -654,8 +926,26 @@ export default VideoPostScreen = () => {
                 } 
                 else {
                     // Handle other errors
-                    const errorMessage = response?.message || response?.detail || 
-                                        response?.data?.message || "Failed to submit post";
+                    let errorMessage = response?.message || response?.detail || 
+                                      response?.data?.message || "Failed to submit post";
+                    
+                    // Check for specific file size error messages
+                    const lowerErrorMessage = errorMessage.toLowerCase();
+                    if (response?.statusCode === 413 || response?.status === 413 || 
+                        lowerErrorMessage.includes('413') || 
+                        lowerErrorMessage.includes('entity too large') || 
+                        lowerErrorMessage.includes('request entity too large')) {
+                        // HTTP 413 Payload Too Large - specific guidance
+                        errorMessage = "Video file exceeds server limit (50MB maximum). Please compress your video, reduce quality/resolution, or use a shorter clip. Alternatively, upload to YouTube and use the YouTube link option.";
+                    } else if (lowerErrorMessage.includes('file') && 
+                        (lowerErrorMessage.includes('large') || 
+                         lowerErrorMessage.includes('size') || 
+                         lowerErrorMessage.includes('limit') ||
+                         lowerErrorMessage.includes('too big') ||
+                         lowerErrorMessage.includes('exceeded'))) {
+                        errorMessage = "Video file is too large. Please choose a smaller video file (max 50MB) or use YouTube link option.";
+                    }
+                    
                     console.error("Submission error:", errorMessage);
                     
                     setToastMessage({
@@ -667,9 +957,29 @@ export default VideoPostScreen = () => {
             }
         } catch (error) {
             console.error("Error submitting post:", error);
+            
+            let errorMessage = "An unexpected error occurred";
+            
+            // Handle specific error types
+            if (error.message) {
+                if (error.message.includes('Network request failed')) {
+                    errorMessage = "Network connection error. Please check your internet and try again.";
+                } else if (error.message.includes('timeout')) {
+                    errorMessage = videoFile ? 
+                        "Upload timeout. Video file may be too large (max 50MB) or connection is slow. Try compressing the video or use YouTube link option." :
+                        "Request timeout. Please try again.";
+                } else if (error.message.includes('JSON')) {
+                    errorMessage = "Server response error. Please try again later.";
+                } else if (error.message.includes('413') || 
+                          error.message.includes('Payload Too Large') || 
+                          error.message.includes('Request Entity Too Large')) {
+                    errorMessage = "Video file exceeds server limit (50MB maximum). Please compress your video or use YouTube link option.";
+                }
+            }
+            
             setToastMessage({
                 type: "error",
-                msg: "An unexpected error occurred",
+                msg: errorMessage,
                 visible: true
             });
         } finally {
@@ -722,6 +1032,7 @@ export default VideoPostScreen = () => {
                     <View style={styles.optionSectionContainer}>
                         <View style={styles.optionHeader}>
                             <Text style={styles.optionHeaderText}>📤 UPLOAD VIDEO</Text>
+                            <Text style={styles.videoUploadNote}>Maximum file size: 50MB</Text>
                         </View>
                         
                         <View style={styles.fileSelectionContainer}>
@@ -733,6 +1044,29 @@ export default VideoPostScreen = () => {
                             </TouchableOpacity>
                             <Text style={styles.fileSelectedText}>{selectedFile}</Text>
                         </View>
+                    </View>
+
+                    {/* Additional Images */}
+                    <Text style={[styles.sectionTitle, { marginTop: HEIGHT * 0.02 }]}>Additional Images (Optional)</Text>
+                    <Text style={styles.sectionSubtitle}>Add up to 4 additional images for your video post</Text>
+                    
+                    <View style={styles.additionalImagesContainer}>
+                        {additionalImages.map((imageItem, index) => (
+                            <View key={index} style={styles.additionalImageRow}>
+                                <Text style={styles.additionalImageLabel}>
+                                    Additional Image {index + 1}
+                                </Text>
+                                <View style={styles.fileSelectionContainer}>
+                                    <TouchableOpacity 
+                                        style={styles.chooseFileButton}
+                                        onPress={() => handleChooseAdditionalImage(index)}
+                                    >
+                                        <Text style={styles.chooseFileText}>Choose File</Text>
+                                    </TouchableOpacity>
+                                    <Text style={styles.fileSelectedText}>{imageItem.name}</Text>
+                                </View>
+                            </View>
+                        ))}
                     </View>
 
                     {/* Content Section */}
@@ -1020,6 +1354,12 @@ const styles = StyleSheet.create({
         fontSize: WIDTH * 0.03,
         fontFamily: BOLDMONTSERRAT
     },
+    videoUploadNote: {
+        fontSize: WIDTH * 0.025,
+        color: '#888',
+        fontFamily: POPPINSLIGHT,
+        marginTop: HEIGHT * 0.003
+    },
     youtubeInput: {
         borderWidth: 1,
         borderColor: '#ccc',
@@ -1195,5 +1535,24 @@ const styles = StyleSheet.create({
         color: WHITE,
         fontFamily: BOLDMONTSERRAT,
         fontSize: WIDTH * 0.03
+    },
+    // Additional Images Styles
+    sectionSubtitle: {
+        fontSize: WIDTH * 0.028,
+        color: '#666',
+        fontFamily: POPPINSLIGHT,
+        marginBottom: HEIGHT * 0.01
+    },
+    additionalImagesContainer: {
+        marginBottom: HEIGHT * 0.015
+    },
+    additionalImageRow: {
+        marginBottom: HEIGHT * 0.015
+    },
+    additionalImageLabel: {
+        fontSize: WIDTH * 0.03,
+        fontFamily: POPPINSMEDIUM,
+        color: '#666',
+        marginBottom: HEIGHT * 0.005
     }
 });

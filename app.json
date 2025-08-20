@@ -1,4 +1,7 @@
 {
   "name": "newztok_ios",
-  "displayName": "newztok_ios"
+  "displayName": "newztok_ios",
+  "react-native-google-mobile-ads": {
+    "ios_app_id": "ca-app-pub-4921721616009568~1642972230"
+  }
 }

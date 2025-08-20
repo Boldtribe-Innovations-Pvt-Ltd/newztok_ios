@@ -3,10 +3,43 @@ import { Modal, View, TouchableOpacity, StyleSheet, Image, Dimensions, Text, Pla
 import { BLACK, WHITE } from '../../constants/color';
 import { GETNETWORK } from '../../utils/Network';
 import { BASE_URL } from '../../constants/url';
+import { InterstitialAd, RewardedAd, RewardedInterstitialAd, AdEventType, RewardedAdEventType, TestIds } from 'react-native-google-mobile-ads';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const PopoverAd = ({ onClose }) => {
+const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : 'ca-app-pub-4921721616009568/7302778432';
+
+const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
+  keywords: ['news', 'media', 'current affairs', 'fashion', 'clothing'],
+});
+
+const adUnitId2 = __DEV__ ? TestIds.REWARDED : 'ca-app-pub-4921721616009568/7302778432';
+const adUnitId3 = __DEV__ ? TestIds.REWARDED_INTERSTITIAL : 'ca-app-pub-4921721616009568/7302778432';
+
+const rewarded = RewardedAd.createForAdRequest(adUnitId2, {
+  keywords: ['news', 'media', 'current affairs', 'fashion', 'clothing'],
+});
+
+const rewardedInterstitial = RewardedInterstitialAd.createForAdRequest(adUnitId3, {
+  keywords: ['news', 'media', 'current affairs', 'fashion', 'clothing'],
+});
+
+// const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const PopoverAd = ({ onClose, scrollCount = 0 }) => {
+  const [interstitialLoaded, setInterstitialLoaded] = useState(false);
+  const [rewardedLoaded, setRewardedLoaded] = useState(false);
+  const [rewardedInterstitialLoaded, setRewardedInterstitialLoaded] = useState(false);
+  const [showingRewarded, setShowingRewarded] = useState(false);
+  const [showingRewardedInterstitial, setShowingRewardedInterstitial] = useState(false);
+  
+  // Calculate which ad to show based on scroll count
+  const getAdTypeForScroll = (count) => {
+    const scrollMod = count % 21; // Every 21 scrolls completes the sequence (7 + 7 + 7)
+    if (scrollMod < 7) return 'interstitial';
+    if (scrollMod < 14) return 'rewarded';
+    return 'rewardedInterstitial';
+  };
   const [visible, setVisible] = useState(true);
   const [adData, setAdData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,6 +48,86 @@ const PopoverAd = ({ onClose }) => {
 
   useEffect(() => {
     fetchAdData();
+
+    // Interstitial ad event listeners
+    const unsubscribeInterstitialLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      setInterstitialLoaded(true);
+    });
+
+    const unsubscribeInterstitialOpened = interstitial.addAdEventListener(AdEventType.OPENED, () => {
+      if (Platform.OS === 'ios') {
+        StatusBar.setHidden(true);
+      }
+    });
+
+    const unsubscribeInterstitialClosed = interstitial.addAdEventListener(AdEventType.CLOSED, () => {
+      if (Platform.OS === 'ios') {
+        StatusBar.setHidden(false);
+      }
+      handleClose();
+    });
+
+    // Rewarded ad event listeners
+    const unsubscribeRewardedLoaded = rewarded.addAdEventListener(RewardedAdEventType.LOADED, () => {
+      setRewardedLoaded(true);
+    });
+
+    const unsubscribeRewardedEarned = rewarded.addAdEventListener(
+      RewardedAdEventType.EARNED_REWARD,
+      reward => {
+        console.log('User earned reward of ', reward);
+      }
+    );
+
+    const unsubscribeRewardedClosed = rewarded.addAdEventListener(AdEventType.CLOSED, () => {
+      if (Platform.OS === 'ios') {
+        StatusBar.setHidden(false);
+      }
+      handleClose();
+    });
+
+    // Rewarded Interstitial ad event listeners
+    const unsubscribeRewardedInterstitialLoaded = rewardedInterstitial.addAdEventListener(
+      RewardedAdEventType.LOADED,
+      () => {
+        setRewardedInterstitialLoaded(true);
+      }
+    );
+
+    const unsubscribeRewardedInterstitialEarned = rewardedInterstitial.addAdEventListener(
+      RewardedAdEventType.EARNED_REWARD,
+      reward => {
+        console.log('User earned reward of ', reward);
+      }
+    );
+
+    const unsubscribeRewardedInterstitialClosed = rewardedInterstitial.addAdEventListener(
+      AdEventType.CLOSED,
+      () => {
+        if (Platform.OS === 'ios') {
+          StatusBar.setHidden(false);
+        }
+        handleClose();
+      }
+    );
+
+    // Start loading all ad types
+    interstitial.load();
+    rewarded.load();
+    rewardedInterstitial.load();
+
+    // Unsubscribe from events on unmount
+    return () => {
+      unsubscribeInterstitialLoaded();
+      unsubscribeInterstitialOpened();
+      unsubscribeInterstitialClosed();
+      unsubscribeRewardedLoaded();
+      unsubscribeRewardedEarned();
+      unsubscribeRewardedClosed();
+      unsubscribeRewardedInterstitialLoaded();
+      unsubscribeRewardedInterstitialEarned();
+      unsubscribeRewardedInterstitialClosed();
+    };
   }, []);
 
   const fetchAdData = async () => {
@@ -127,9 +240,43 @@ const PopoverAd = ({ onClose }) => {
     return null;
   }
 
-  // Simple condition: Show PopoverAd only if API has data and we have adData
-  if (loading || noAdsAvailable || error || !adData) {
-    console.log('PopoverAd: Not showing - loading:', loading, 'noAds:', noAdsAvailable, 'error:', error, 'hasAdData:', !!adData);
+  // Handle loading and error states
+  if (loading || error) {
+    return null;
+  }
+
+  // If no popover ad is available, show ads based on scroll count
+  if (noAdsAvailable || !adData) {
+    const currentAdType = getAdTypeForScroll(scrollCount);
+    console.log('PopoverAd: No popover ad available, showing ad type:', currentAdType, 'for scroll count:', scrollCount);
+    
+    switch (currentAdType) {
+      case 'interstitial':
+        if (interstitialLoaded) {
+          console.log('PopoverAd: Showing interstitial ad');
+          interstitial.show();
+          return null;
+        }
+        break;
+      
+      case 'rewarded':
+        if (rewardedLoaded && !showingRewarded) {
+          console.log('PopoverAd: Showing rewarded ad');
+          setShowingRewarded(true);
+          rewarded.show();
+          return null;
+        }
+        break;
+      
+      case 'rewardedInterstitial':
+        if (rewardedInterstitialLoaded && !showingRewardedInterstitial) {
+          console.log('PopoverAd: Showing rewarded interstitial ad');
+          setShowingRewardedInterstitial(true);
+          rewardedInterstitial.show();
+          return null;
+        }
+        break;
+    }
     return null;
   }
   
@@ -239,4 +386,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PopoverAd; 
+export default PopoverAd;
