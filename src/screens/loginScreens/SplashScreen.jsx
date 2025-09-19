@@ -5,7 +5,7 @@ import { MyStatusBar } from "../../components/commonComponents/MyStatusBar";
 import { LOGO2 } from "../../constants/imagePath";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getStringByKey, getObjByKey } from "../../utils/Storage";
-import messaging from '@react-native-firebase/messaging';
+import messaging, { getToken, onMessage, setBackgroundMessageHandler, onNotificationOpenedApp, getInitialNotification, subscribeToTopic, onTokenRefresh } from '@react-native-firebase/messaging';
 
 export default SplashScreen = ({ navigation }) => {
   const logoScale = useRef(new Animated.Value(0)).current;
@@ -13,10 +13,22 @@ export default SplashScreen = ({ navigation }) => {
 
   const requestUserPermission = async () => {
     try {
-      const authStatus = await messaging().requestPermission();
+      // For iOS, we need to request specific permissions
+      const authStatus = await messaging().requestPermission({
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      });
+      
       const enabled =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
         authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+      
+      console.log('📱 iOS Notification Authorization Status:', authStatus);
       
       if (enabled) {
         console.log('✅ Notification permissions granted');
@@ -36,229 +48,258 @@ export default SplashScreen = ({ navigation }) => {
       // Request notification permissions
       const hasPermission = await requestUserPermission();
       
-      if (hasPermission) {
-        // Get and store FCM token
-        const fcmToken = await messaging().getToken();
+      // Try to get FCM token regardless of permission status for iOS
+      let fcmToken = null;
+      try {
+        fcmToken = await getToken(messaging());
+        console.log('🔑 FCM Token obtained:', fcmToken);
+      } catch (tokenError) {
+        console.log('⚠️ Could not get FCM token initially:', tokenError);
         
-        if (fcmToken) {
-          await AsyncStorage.setItem('fcmToken', fcmToken);
-          await AsyncStorage.setItem('fcmtoken', fcmToken);
-
-          // Set up token refresh listener
-          messaging().onTokenRefresh(async newToken => {
-            await AsyncStorage.setItem('fcmToken', newToken);
-            await AsyncStorage.setItem('fcmtoken', newToken);
-          });
-
-          // Handle foreground messages
-          const unsubscribe = messaging().onMessage(async remoteMessage => {
-            try {
-              console.log('📱 [Topic Notification] Received foreground message:', {
-                topic: remoteMessage.from,
-                title: remoteMessage.notification?.title,
-                body: remoteMessage.notification?.body,
-                data: remoteMessage.data
-              });
-
-              // Create notification data with proper structure
-              const notificationData = {
-                ...remoteMessage,
-                notification: {
-                  ...remoteMessage.notification,
-                  android: {
-                    ...remoteMessage.notification?.android,
-                    channelId: 'newztok-channel-important',
-                    priority: 'high',
-                    sound: 'default',
-                    importance: 4,
-                    smallIcon: '@mipmap/ic_launcher',
-                    largeIcon: '@mipmap/ic_launcher',
-                    color: '#D21008',
-                    clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-                    tag: 'com.newztok.newztok2025'
-                  },
-                  ios: {
-                    ...remoteMessage.notification?.ios,
-                    sound: 'default',
-                    badge: 1,
-                    threadId: 'com.newztok.newztok2025'
-                  }
-                },
-                data: {
-                  ...remoteMessage.data,
-                  click_action: 'FLUTTER_NOTIFICATION_CLICK',
-                  collapse_key: 'com.newztok.newztok2025'
-                }
-              };
-
-              // Show notification using Alert for foreground
-              Alert.alert(
-                notificationData.notification?.title ?? 'News Update',
-                notificationData.notification?.body ?? '',
-                [
-                  {
-                    text: 'View',
-                    onPress: () => {
-                      console.log('📱 [Topic Notification] Notification viewed');
-                      // Handle notification click
-                    }
-                  },
-                  {
-                    text: 'OK',
-                    style: 'cancel'
-                  }
-                ]
-              );
-            } catch (error) {
-              console.error('❌ [Topic Notification] Error handling notification:', error);
-            }
-          });
-
-          // Set up background message handler
-          messaging().setBackgroundMessageHandler(async remoteMessage => {
-            try {
-              console.log('📱 [Topic Notification] Received background message:', {
-                topic: remoteMessage.from,
-                title: remoteMessage.notification?.title,
-                body: remoteMessage.notification?.body,
-                data: remoteMessage.data
-              });
-
-              // Create notification data with proper structure for background
-              const notificationData = {
-                ...remoteMessage,
-                notification: {
-                  ...remoteMessage.notification,
-                  android: {
-                    ...remoteMessage.notification?.android,
-                    channelId: 'newztok-channel-important',
-                    priority: 'high',
-                    sound: 'default',
-                    importance: 4,
-                    smallIcon: '@mipmap/ic_launcher',
-                    largeIcon: '@mipmap/ic_launcher',
-                    color: '#D21008',
-                    clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-                    tag: 'com.newztok.newztok2025'
-                  },
-                  ios: {
-                    ...remoteMessage.notification?.ios,
-                    sound: 'default',
-                    badge: 1,
-                    threadId: 'com.newztok.newztok2025'
-                  }
-                },
-                data: {
-                  ...remoteMessage.data,
-                  click_action: 'FLUTTER_NOTIFICATION_CLICK',
-                  collapse_key: 'com.newztok.newztok2025'
-                }
-              };
-
-              // Return the notification data for background processing
-              return Promise.resolve(notificationData);
-            } catch (error) {
-              console.error('❌ [Topic Notification] Error handling background notification:', error);
-              return Promise.reject(error);
-            }
-          });
-
-          // Initialize notification channel for Android
-          if (Platform.OS === 'android') {
-            await messaging().android.createChannel({
-              id: 'newztok-channel-important',
-              name: 'NewzTok Important Alerts',
-              importance: 4,
-              vibration: true,
-              sound: 'default',
-              enableVibration: true,
-              enableLights: true,
-              lightColor: '#D21008',
-              showBadge: true,
-              description: 'Important news updates and notifications',
-              badge: true
-            });
-          }
-
-          // Subscribe to default topics with error handling
+        // For iOS, try again after a short delay
+        if (Platform.OS === 'ios') {
+          console.log('🔄 [iOS] Retrying FCM token after delay...');
+          await new Promise(resolve => setTimeout(resolve, 2000));
           try {
-            console.log('📢 [Topic Subscription] Subscribing to default topics...');
-            await messaging().subscribeToTopic('news_updates');
-            console.log('✅ [Topic Subscription] Subscribed to news_updates');
-            await messaging().subscribeToTopic('news_approvals');
-            console.log('✅ [Topic Subscription] Subscribed to news_approvals');
-
-            // Get user data for topic subscription
-            const userData = await getObjByKey('user');
-            
-            if (userData) {
-              console.log('👤 [Topic Subscription] User preferences found:', {
-                state: userData.state,
-                district: userData.district,
-                categories: userData.categories
-              });
-
-              // Subscribe to topics based on user preferences
-              if (userData.state) {
-                const stateTopic = `state_${userData.state.toLowerCase().replace(/\s+/g, '_')}`;
-                await messaging().subscribeToTopic(stateTopic);
-                console.log('✅ [Topic Subscription] Subscribed to state topic:', stateTopic);
-              }
-              
-              if (userData.district) {
-                const districtTopic = `district_${userData.district.toLowerCase().replace(/\s+/g, '_')}`;
-                await messaging().subscribeToTopic(districtTopic);
-                console.log('✅ [Topic Subscription] Subscribed to district topic:', districtTopic);
-              }
-              
-              if (userData.categories?.length) {
-                for (const category of userData.categories) {
-                  const categoryTopic = `category_${category.toLowerCase().replace(/\s+/g, '_')}`;
-                  await messaging().subscribeToTopic(categoryTopic);
-                  console.log('✅ [Topic Subscription] Subscribed to category topic:', categoryTopic);
-                }
-              }
-            }
-          } catch (error) {
-            console.error('❌ [Topic Subscription] Error subscribing to topics:', error);
+            fcmToken = await getToken(messaging());
+            console.log('🔑 [iOS] FCM Token obtained on retry:', fcmToken);
+          } catch (retryError) {
+            console.log('❌ [iOS] FCM token retry failed:', retryError);
           }
+        }
+      }
+      
+      if (fcmToken) {
+        await AsyncStorage.setItem('fcmToken', fcmToken);
+        await AsyncStorage.setItem('fcmtoken', fcmToken);
+        console.log('✅ FCM Token stored successfully');
+        
+        // Post FCM details to server
+        try {
+          const { POSTNETWORK } = require('../../utils/Network');
+          const { BASE_URL } = require('../../constants/url');
+          const url = `${BASE_URL}api/users/update-fcm-token`;
+          const obj = { "token": fcmToken };
+          const response = await POSTNETWORK(url, obj);
+          console.log('📤 FCM Token posted to server:', response);
+        } catch (serverError) {
+          console.error('❌ Error posting FCM token to server:', serverError);
+        }
 
-          // Add notification opened handler with navigation
-          messaging().onNotificationOpenedApp(remoteMessage => {
-            console.log('📱 [Topic Notification] App opened from notification:', {
+        // Set up token refresh listener
+        onTokenRefresh(messaging(), async newToken => {
+          await AsyncStorage.setItem('fcmToken', newToken);
+          await AsyncStorage.setItem('fcmtoken', newToken);
+          console.log('🔄 FCM Token refreshed:', newToken);
+        });
+
+        // Handle foreground messages
+        const unsubscribe = onMessage(messaging(), async remoteMessage => {
+          try {
+            console.log('📱 [Topic Notification] Received foreground message:', {
               topic: remoteMessage.from,
               title: remoteMessage.notification?.title,
               body: remoteMessage.notification?.body,
               data: remoteMessage.data
             });
 
-            // Handle navigation based on notification data
-            if (remoteMessage.data?.screen) {
-              navigation.navigate(remoteMessage.data.screen, remoteMessage.data.params);
+            // Create notification data with proper structure
+            const notificationData = {
+              ...remoteMessage,
+              notification: {
+                ...remoteMessage.notification,
+                android: {
+                  ...remoteMessage.notification?.android,
+                  channelId: 'newztok-channel-important',
+                  priority: 'high',
+                  sound: 'default',
+                  importance: 4,
+                  smallIcon: '@mipmap/ic_launcher',
+                  largeIcon: '@mipmap/ic_launcher',
+                  color: '#D21008',
+                  clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                  tag: 'com.newztok.newztok2025'
+                },
+                ios: {
+                  ...remoteMessage.notification?.ios,
+                  sound: 'default',
+                  badge: 1,
+                  threadId: 'com.newztok.newztok2025'
+                }
+              },
+              data: {
+                ...remoteMessage.data,
+                click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                collapse_key: 'com.newztok.newztok2025'
+              }
+            };
+
+            // Show notification using Alert for foreground
+            Alert.alert(
+              notificationData.notification?.title ?? 'News Update',
+              notificationData.notification?.body ?? '',
+              [
+                {
+                  text: 'View',
+                  onPress: () => {
+                    console.log('📱 [Topic Notification] Notification viewed');
+                    // Handle notification click
+                  }
+                },
+                {
+                  text: 'OK',
+                  style: 'cancel'
+                }
+              ]
+            );
+          } catch (error) {
+            console.error('❌ [Topic Notification] Error handling notification:', error);
+          }
+        });
+
+        // Set up background message handler
+        setBackgroundMessageHandler(messaging(), async remoteMessage => {
+          try {
+            console.log('📱 [Topic Notification] Received background message:', {
+              topic: remoteMessage.from,
+              title: remoteMessage.notification?.title,
+              body: remoteMessage.notification?.body,
+              data: remoteMessage.data
+            });
+
+            // Create notification data with proper structure for background
+            const notificationData = {
+              ...remoteMessage,
+              notification: {
+                ...remoteMessage.notification,
+                android: {
+                  ...remoteMessage.notification?.android,
+                  channelId: 'newztok-channel-important',
+                  priority: 'high',
+                  sound: 'default',
+                  importance: 4,
+                  smallIcon: '@mipmap/ic_launcher',
+                  largeIcon: '@mipmap/ic_launcher',
+                  color: '#D21008',
+                  clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                  tag: 'com.newztok.newztok2025'
+                },
+                ios: {
+                  ...remoteMessage.notification?.ios,
+                  sound: 'default',
+                  badge: 1,
+                  threadId: 'com.newztok.newztok2025'
+                }
+              },
+              data: {
+                ...remoteMessage.data,
+                click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                collapse_key: 'com.newztok.newztok2025'
+              }
+            };
+
+            // Return the notification data for background processing
+            return Promise.resolve(notificationData);
+          } catch (error) {
+            console.error('❌ [Topic Notification] Error handling background notification:', error);
+            return Promise.reject(error);
+          }
+        });
+
+        // Initialize notification channel for Android
+        if (Platform.OS === 'android') {
+          await messaging().android.createChannel({
+            id: 'newztok-channel-important',
+            name: 'NewzTok Important Alerts',
+            importance: 4,
+            vibration: true,
+            sound: 'default',
+            enableVibration: true,
+            enableLights: true,
+            lightColor: '#D21008',
+            showBadge: true,
+            description: 'Important news updates and notifications',
+            badge: true
+          });
+        }
+
+        // Subscribe to default topics with error handling
+        try {
+          console.log('📢 [Topic Subscription] Subscribing to default topics...');
+          await subscribeToTopic(messaging(), 'news_updates');
+          console.log('✅ [Topic Subscription] Subscribed to news_updates');
+          await subscribeToTopic(messaging(), 'news_approvals');
+          console.log('✅ [Topic Subscription] Subscribed to news_approvals');
+
+          // Get user data for topic subscription
+          const userData = await getObjByKey('user');
+          
+          if (userData) {
+            console.log('👤 [Topic Subscription] User preferences found:', {
+              state: userData.state,
+              district: userData.district,
+              categories: userData.categories
+            });
+
+            // Subscribe to topics based on user preferences
+            if (userData.state) {
+              const stateTopic = `state_${userData.state.toLowerCase().replace(/\s+/g, '_')}`;
+              await subscribeToTopic(messaging(), stateTopic);
+              console.log('✅ [Topic Subscription] Subscribed to state topic:', stateTopic);
+            }
+            
+            if (userData.district) {
+              const districtTopic = `district_${userData.district.toLowerCase().replace(/\s+/g, '_')}`;
+              await subscribeToTopic(messaging(), districtTopic);
+              console.log('✅ [Topic Subscription] Subscribed to district topic:', districtTopic);
+            }
+            
+            if (userData.categories?.length) {
+              for (const category of userData.categories) {
+                const categoryTopic = `category_${category.toLowerCase().replace(/\s+/g, '_')}`;
+                await subscribeToTopic(messaging(), categoryTopic);
+                console.log('✅ [Topic Subscription] Subscribed to category topic:', categoryTopic);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ [Topic Subscription] Error subscribing to topics:', error);
+        }
+
+        // Add notification opened handler with navigation
+        onNotificationOpenedApp(messaging(), remoteMessage => {
+          console.log('📱 [Topic Notification] App opened from notification:', {
+            topic: remoteMessage.from,
+            title: remoteMessage.notification?.title,
+            body: remoteMessage.notification?.body,
+            data: remoteMessage.data
+          });
+
+          // Handle navigation based on notification data
+          if (remoteMessage.data?.screen) {
+            navigation.navigate(remoteMessage.data.screen, remoteMessage.data.params);
+          }
+        });
+
+        // Check if app was opened from a notification
+        getInitialNotification(messaging())
+          .then(remoteMessage => {
+            if (remoteMessage) {
+              console.log('📱 [Topic Notification] App opened from quit state with notification:', {
+                topic: remoteMessage.from,
+                title: remoteMessage.notification?.title,
+                body: remoteMessage.notification?.body,
+                data: remoteMessage.data
+              });
+
+              // Handle navigation based on notification data
+              if (remoteMessage.data?.screen) {
+                navigation.navigate(remoteMessage.data.screen, remoteMessage.data.params);
+              }
             }
           });
 
-          // Check if app was opened from a notification
-          messaging()
-            .getInitialNotification()
-            .then(remoteMessage => {
-              if (remoteMessage) {
-                console.log('📱 [Topic Notification] App opened from quit state with notification:', {
-                  topic: remoteMessage.from,
-                  title: remoteMessage.notification?.title,
-                  body: remoteMessage.notification?.body,
-                  data: remoteMessage.data
-                });
-
-                // Handle navigation based on notification data
-                if (remoteMessage.data?.screen) {
-                  navigation.navigate(remoteMessage.data.screen, remoteMessage.data.params);
-                }
-              }
-            });
-
-          return unsubscribe;
-        }
+        return unsubscribe;
       }
     } catch (error) {
       console.error('Error initializing notifications:', error);
@@ -285,6 +326,11 @@ export default SplashScreen = ({ navigation }) => {
             console.log('Notification permission denied');
             return;
           }
+        }
+        
+        // For iOS, add a small delay to ensure the app is fully initialized
+        if (Platform.OS === 'ios') {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
         // Initialize notifications

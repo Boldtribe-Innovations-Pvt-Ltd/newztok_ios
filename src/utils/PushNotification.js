@@ -1,307 +1,230 @@
-import messaging from '@react-native-firebase/messaging';
+import messaging, { getMessaging, getToken, onMessage, setBackgroundMessageHandler, onNotificationOpenedApp, getInitialNotification, subscribeToTopic, onTokenRefresh } from '@react-native-firebase/messaging';
 import { getStringByKey, storeStringByKey } from './Storage';
 import { POSTNETWORK } from './Network';
-import { Vibration, Platform, AppState } from 'react-native';
+import { Vibration } from 'react-native';
 import { BASE_URL } from '../constants/url';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// Configure default notification settings
-messaging().setBackgroundMessageHandler(async remoteMessage => {
-    console.log('📬 [PushNotification] Message handled in background:', remoteMessage);
-    storeNotificationInHistory(remoteMessage);
-    return Promise.resolve();
-});
-
-// Enable foreground notifications
-messaging().onMessage(async remoteMessage => {
-    console.log('📬 [PushNotification] Foreground message received:', remoteMessage);
-});
-
-// Set special delivery for foreground notifications
-messaging().setDeliveryMetricsExportToBigQuery(true);
-
-// Configure iOS specific settings
-if (Platform.OS === 'ios') {
-    messaging().setAutoInitEnabled(true);
-    messaging().ios.registerForRemoteNotifications();
-}
 
 export const requestUserPermission = async () => {
     try {
-        console.log('🔔 [PushNotification] Requesting notification permissions...');
-        const authStatus = await messaging().requestPermission();
-        console.log('🔔 [PushNotification] Authorization status:', authStatus);
+        // Add a small delay to ensure the app context is ready
+        await new Promise(resolve => setTimeout(resolve, 500));
         
+        const authStatus = await messaging().requestPermission();
         const enabled =
             authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
             authStatus === messaging.AuthorizationStatus.PROVISIONAL;
         
+        console.log('FCM Authorization status:', authStatus);
+        
         if (enabled) {
-            console.log('✅ [PushNotification] Notification permissions granted');
-            await getFCM();
-            return true;
+            console.log('FCM permissions granted, getting token...');
+            const fcmToken = await getFCM();
+            return fcmToken !== null;
         } else {
-            console.log('❌ [PushNotification] Notification permissions not granted');
+            console.log('FCM permissions denied');
             return false;
         }
     } catch (error) {
-        console.error('❌ [PushNotification] Error requesting notification permissions:', error);
+        console.error('Error requesting FCM permissions:', error);
         return false;
     }
 }
 
-const sendTokenToBackend = async (token) => {
+// Alternative method to setup notifications when app is ready
+export const setupNotificationsWhenReady = async (navigation) => {
     try {
-        const url = `${BASE_URL}api/users/update-fcm-token`;
-        console.log('📤 [PushNotification] Sending FCM token to server:', token);
+        console.log('Setting up notifications when app is ready...');
         
-        const userToken = await AsyncStorage.getItem('loginResponse');
-        const payload = { fcmToken: token };
-        const isAuthenticated = !!userToken;
+        // Wait a bit more to ensure everything is ready
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const response = await POSTNETWORK(url, payload, isAuthenticated);
-        console.log("✅ [PushNotification] FCM token update response:", response);
-        
-        return response?.success || false;
-    } catch (error) {
-        console.error('❌ [PushNotification] Error sending FCM token to backend:', error);
-        return false;
-    }
-}
-
-export const getFCM = async () => {
-    try {
-        console.log('🔑 [PushNotification] Checking for existing FCM token...');
-        let fcmToken = await AsyncStorage.getItem('fcmToken');
-        
-        if (!fcmToken) {
-            console.log('🔄 [PushNotification] Generating new FCM token...');
-            await messaging().registerDeviceForRemoteMessages();
-            const newToken = await messaging().getToken();
-            
-            if (newToken) {
-                console.log('💾 [PushNotification] Storing new FCM token...');
-                await AsyncStorage.setItem('fcmToken', newToken);
-                await storeStringByKey('fcmtoken', newToken);
-                await sendTokenToBackend(newToken);
-                fcmToken = newToken;
+        // Try to get FCM token without requesting permissions first
+        let fcmToken = null;
+        try {
+            fcmToken = await getToken(messaging());
+            if (fcmToken) {
+                console.log('FCM token obtained without requesting permissions:', fcmToken);
+                await storeStringByKey('fcmtoken', fcmToken);
+                postFcmdetails();
             }
-        } else {
-            await sendTokenToBackend(fcmToken);
+        } catch (tokenError) {
+            console.log('Could not get FCM token without permissions, requesting permissions...');
+            
+            // If we can't get token without permissions, try requesting permissions
+            const permissionGranted = await requestUserPermission();
+            if (permissionGranted) {
+                fcmToken = await getFCM();
+            }
         }
         
-        // Set up token refresh listener
-        messaging().onTokenRefresh(async newToken => {
-            console.log('🔄 [PushNotification] FCM token refreshed:', newToken);
-            await AsyncStorage.setItem('fcmToken', newToken);
-            await storeStringByKey('fcmtoken', newToken);
-            await sendTokenToBackend(newToken);
-        });
+        // Set up notification listeners regardless of token status
+        NotificationListener(navigation);
         
-        return fcmToken;
+        return fcmToken !== null;
     } catch (error) {
-        console.error('❌ [PushNotification] Error getting FCM token:', error);
+        console.error('Error in setupNotificationsWhenReady:', error);
+        return false;
+    }
+}
+const postFcmdetails = async () => {
+
+    const url =`${BASE_URL}api/users/update-fcm-token`
+    const user= await getStringByKey('fcmtoken')
+    console.log('tokennnnnnnnn',user)
+    const obj={
+        "token":user
+    }
+    // console.log("obj",obj)
+
+
+    POSTNETWORK(url,obj).then(res=>{
+        console.log("responseeeeeee",res)
+        // console.log("response",res)
+    })
+}
+
+const getFCM = async () => {
+    try {
+        const fcmtoken = await getStringByKey('fcmtoken');
+        if (fcmtoken) {
+            console.log('Using existing FCM token:', fcmtoken);
+            return fcmtoken;
+        } else {
+            console.log('No existing FCM token, generating new one...');
+            const newFcmToken = await getToken(messaging());
+            if (newFcmToken) {
+                await storeStringByKey('fcmtoken', newFcmToken);
+                console.log('New FCM token generated and stored:', newFcmToken);
+                postFcmdetails();
+                return newFcmToken;
+            } else {
+                console.error('Failed to generate FCM token');
+                return null;
+            }
+        }
+    } catch (err) {
+        console.error("Error in getFCM:", err);
         return null;
     }
 }
 
-export const subscribeToTopics = async (userPreferences = {}) => {
-    try {
-        if (!userPreferences || Object.keys(userPreferences).length === 0) {
-            const userPrefsStr = await AsyncStorage.getItem('userPreferences');
-            userPreferences = userPrefsStr ? JSON.parse(userPrefsStr) : { categories: ['general'] };
-        }
-        
-        console.log('📢 [PushNotification] Subscribing to topics:', userPreferences);
-        
-        await messaging().subscribeToTopic('news_updates');
-        
-        if (userPreferences.state) {
-            const stateTopic = `state_${userPreferences.state.toLowerCase().replace(/\s+/g, '_')}`;
-            await messaging().subscribeToTopic(stateTopic);
-        }
-        
-        if (userPreferences.district) {
-            const districtTopic = `district_${userPreferences.district.toLowerCase().replace(/\s+/g, '_')}`;
-            await messaging().subscribeToTopic(districtTopic);
-        }
-        
-        if (userPreferences.categories?.length) {
-            for (const category of userPreferences.categories) {
-                const categoryTopic = `category_${category.toLowerCase().replace(/\s+/g, '_')}`;
-                await messaging().subscribeToTopic(categoryTopic);
-            }
-        }
-        
-        await AsyncStorage.setItem('userPreferences', JSON.stringify(userPreferences));
-        console.log('✅ [PushNotification] Topics subscription completed');
-        return true;
-    } catch (error) {
-        console.error('❌ [PushNotification] Error subscribing to topics:', error);
-        return false;
-    }
-}
-
-export const unsubscribeFromTopics = async () => {
-    try {
-        const userPrefsStr = await AsyncStorage.getItem('userPreferences');
-        if (!userPrefsStr) return;
-        
-        const userPreferences = JSON.parse(userPrefsStr);
-        console.log('📢 [PushNotification] Unsubscribing from topics:', userPreferences);
-        
-        await messaging().unsubscribeFromTopic('news_updates');
-        
-        if (userPreferences.state) {
-            const stateTopic = `state_${userPreferences.state.toLowerCase().replace(/\s+/g, '_')}`;
-            await messaging().unsubscribeFromTopic(stateTopic);
-        }
-        
-        if (userPreferences.district) {
-            const districtTopic = `district_${userPreferences.district.toLowerCase().replace(/\s+/g, '_')}`;
-            await messaging().unsubscribeFromTopic(districtTopic);
-        }
-        
-        if (userPreferences.categories?.length) {
-            for (const category of userPreferences.categories) {
-                const categoryTopic = `category_${category.toLowerCase().replace(/\s+/g, '_')}`;
-                await messaging().unsubscribeFromTopic(categoryTopic);
-            }
-        }
-        
-        await AsyncStorage.removeItem('userPreferences');
-        console.log('✅ [PushNotification] Successfully unsubscribed from all topics');
-        return true;
-    } catch (error) {
-        console.error('❌ [PushNotification] Error unsubscribing from topics:', error);
-        return false;
-    }
-}
-
 export const NotificationListener = (navigation) => {
-    console.log("🔔 [PushNotification] Setting up notification listeners...");
+    console.log("Setting up notification listeners");
     
-    messaging().onNotificationOpenedApp(remoteMessage => {
-        console.log('📱 [PushNotification] App opened from background:', remoteMessage);
-        handleNotificationNavigation(remoteMessage, navigation);
+    onNotificationOpenedApp(messaging(), remoteMessage => {
+        console.log(
+            'Notification caused app to open from background state:',
+            remoteMessage.notification,
+        );
+        
+        // Handle navigation based on notification data
+        if (navigation && remoteMessage.data) {
+            const { screen, params } = remoteMessage.data;
+            if (screen) {
+                navigation.navigate(screen, params);
+            }
+        }
     });
 
-    messaging()
-        .getInitialNotification()
-        .then(remoteMessage => {
-            if (remoteMessage) {
-                console.log('📱 [PushNotification] App opened from quit state:', remoteMessage);
-                handleNotificationNavigation(remoteMessage, navigation);
-            }
-        });
-
-    messaging().onMessage(async remoteMessage => {
-        console.log('📬 [PushNotification] Foreground notification received:', remoteMessage);
-        
-        try {
-            const notif = remoteMessage.notification;
-            if (notif) {
-                if (Platform.OS === 'android') {
-                    const channelId = 'newztok-channel-important';
-                    await messaging().android.createChannel({
-                        id: channelId,
-                        name: 'NewzTok Important Alerts',
-                        importance: 4,
-                        vibration: true,
-                        sound: 'default',
-                        enableVibration: true,
-                        enableLights: true,
-                        lightColor: '#D21008',
-                    });
-                    
-                    await messaging().android.showNotification({
-                        channelId,
-                        id: remoteMessage.messageId || new Date().getTime().toString(),
-                        title: notif.title,
-                        body: notif.body,
-                        priority: 'high',
-                        importance: 'high',
-                        sound: 'default',
-                        vibrate: true,
-                        color: '#D21008',
-                        data: remoteMessage.data,
-                        smallIcon: '@drawable/ic_notification',
-                        largeIcon: '@mipmap/ic_launcher',
-                        autoCancel: true,
-                        showWhen: true,
-                        visibility: 'public',
-                    });
-                } else if (Platform.OS === 'ios') {
-                    await messaging().ios.showNotification({
-                        title: notif.title,
-                        body: notif.body,
-                        sound: 'default',
-                        badge: 1,
-                        data: remoteMessage.data,
-                    });
-                }
-            }
+    getInitialNotification(messaging())
+    .then(remoteMessage => {
+        // Vibration.vibrate();
+        if (remoteMessage) {
+            console.log(
+                'Notification caused app to open from quit state:',
+                remoteMessage.notification,
+            );
             
-            storeNotificationInHistory(remoteMessage);
-        } catch (error) {
-            console.error('❌ [PushNotification] Error handling foreground notification:', error);
+            // Handle navigation based on notification data
+            if (navigation && remoteMessage.data) {
+                const { screen, params } = remoteMessage.data;
+                if (screen) {
+                    navigation.navigate(screen, params);
+                }
+            }
         }
+    });
+
+    onMessage(messaging(), async remoteMessage=>{
+        // Vibration.vibrate();
+        console.log('Notification received in foreground:', remoteMessage);
+        
+        // You can show a local notification here if needed
+        // or update UI based on the notification
+    })
+
+    setBackgroundMessageHandler(messaging(), async remoteMessage => {
+        // Vibration.vibrate();
+        console.log('Message handled in the background!', remoteMessage);
     });
 }
 
-const handleNotificationNavigation = (remoteMessage, navigation) => {
-    if (!navigation || !remoteMessage.data) return;
-    
+// Subscribe to FCM topics based on user preferences
+export const subscribeToTopics = async (userPreferences) => {
     try {
-        const { type, newsId, state, district, category } = remoteMessage.data;
+        console.log('Subscribing to topics with preferences:', userPreferences);
         
-        switch(type) {
-            case 'article_approved':
-            case 'new_published_article':
-                if (newsId) {
-                    navigation.navigate('HomeScreen', { newsData: { id: newsId } });
-                }
-                break;
-            case 'state_news':
-                navigation.navigate('CategoryScreen', { category: 'state', filter: state });
-                break;
-            case 'district_news':
-                navigation.navigate('CategoryScreen', { category: 'district', filter: district });
-                break;
-            case 'category_news':
-                if (category) {
-                    navigation.navigate('CategoryScreen', { category });
-                }
-                break;
-            default:
-                navigation.navigate('MainScreen');
+        // Default topics for all users
+        const defaultTopics = ['general', 'news'];
+        
+        // Add user-specific topics based on preferences
+        const topicsToSubscribe = [...defaultTopics];
+        
+        if (userPreferences.categories && Array.isArray(userPreferences.categories)) {
+            topicsToSubscribe.push(...userPreferences.categories);
         }
+        
+        if (userPreferences.state) {
+            topicsToSubscribe.push(`state_${userPreferences.state.toLowerCase().replace(/\s+/g, '_')}`);
+        }
+        
+        if (userPreferences.district) {
+            topicsToSubscribe.push(`district_${userPreferences.district.toLowerCase().replace(/\s+/g, '_')}`);
+        }
+        
+        // Subscribe to each topic
+        for (const topic of topicsToSubscribe) {
+            try {
+                await subscribeToTopic(messaging(), topic);
+                console.log(`Successfully subscribed to topic: ${topic}`);
+            } catch (error) {
+                console.error(`Failed to subscribe to topic ${topic}:`, error);
+            }
+        }
+        
+        console.log('Topic subscription completed');
     } catch (error) {
-        console.error('❌ [PushNotification] Error handling notification navigation:', error);
+        console.error('Error subscribing to topics:', error);
     }
-}
+};
 
-const storeNotificationInHistory = async (remoteMessage) => {
+// Update FCM token on login
+export const updateFCMTokenOnLogin = async (userToken) => {
     try {
-        const notification = {
-            id: remoteMessage.messageId || new Date().getTime().toString(),
-            title: remoteMessage.notification?.title || 'NewzTok Update',
-            body: remoteMessage.notification?.body || '',
-            data: remoteMessage.data || {},
-            timestamp: new Date().toISOString(),
-            read: false
+        console.log('Updating FCM token on login');
+        
+        // Get current FCM token
+        const fcmToken = await getToken(messaging());
+        console.log('Current FCM token:', fcmToken);
+        
+        // Store the token
+        await storeStringByKey('fcmtoken', fcmToken);
+        
+        // Post FCM details to server with user token
+        const url = `${BASE_URL}api/users/update-fcm-token`;
+        const obj = {
+            "token": fcmToken,
+            "userToken": userToken
         };
         
-        const notificationsStr = await AsyncStorage.getItem('notifications');
-        let notifications = notificationsStr ? JSON.parse(notificationsStr) : [];
+        console.log('Posting FCM details to server:', obj);
         
-        notifications.unshift(notification);
-        if (notifications.length > 50) {
-            notifications = notifications.slice(0, 50);
-        }
+        const response = await POSTNETWORK(url, obj);
+        console.log('FCM token update response:', response);
         
-        await AsyncStorage.setItem('notifications', JSON.stringify(notifications));
+        return fcmToken;
     } catch (error) {
-        console.error('❌ [PushNotification] Error storing notification in history:', error);
+        console.error('Error updating FCM token on login:', error);
+        return null;
     }
-}
+};
